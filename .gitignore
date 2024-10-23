@@ -1,0 +1,9 @@
+*.o
+fsh
+*~
+*.swp
+.vscode/
+.idea/
+*.log
+Makefile~
+.history
