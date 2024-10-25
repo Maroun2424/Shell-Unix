@@ -3,11 +3,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/types.h>       // Pour pid_t
+#include <sys/wait.h>        // Pour waitpid
 #include <readline/readline.h>
 #include <readline/history.h>
 
 int main() {
-    char *input;  // Stock l'entrée de l'utilisateur
+    char *input;  // Stocke l'entrée de l'utilisateur
     char prompt[256];  
 
     // Boucle principale du shell
@@ -27,13 +29,27 @@ int main() {
         } else if (strncmp(input, "cd ", 3) == 0) {
             cmd_cd(input + 3);  // Appel de la commande cd
         } else if (strcmp(input, "pwd") == 0) {
-            cmd_pwd();  // Appel de la commande pwd
+            cmd_pwd();  // Appel de la commande cmd_pwd
+        } else if (strncmp(input, "ftype ", 6) == 0) {
+            cmd_ftype(input + 6);  // Appel de la commande ftype avec le chemin fourni
         } else {
-            system(input);  // Exécute les commandes externes
+            pid_t pid = fork();
+            if (pid == 0) {
+                // Processus enfant : exécute la commande
+                execlp("/bin/sh", "sh", "-c", input, (char *)NULL);
+                write(STDERR_FILENO, "Erreur: commande introuvable\n", 29);
+                _exit(127);  // Si execlp échoue
+            } else if (pid > 0) {
+                // Processus parent : attend la fin du processus enfant
+                int status;
+                waitpid(pid, &status, 0);
+            } else {
+                write(STDERR_FILENO, "Erreur: échec du fork\n", 22);
+            }
         }
 
         free(input);  // Libère la mémoire allouée pour l'entrée utilisateur
     }
 
     return 0;
-}
+}  
