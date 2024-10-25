@@ -94,3 +94,9 @@ int pwd() {
     printf("%s\n", path);  // Affiche le chemin absolu
     return 0;
 }
+
+// Fonction exit pour quitter le shell avec un code de sortie donné
+void cmd_exit(int exit_code) {
+    printf("Exit de fsh avec le code %d\n", exit_code);
+    exit(exit_code);
+}
