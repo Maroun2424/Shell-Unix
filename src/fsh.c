@@ -23,10 +23,10 @@ int main() {
 
         add_history(input);  // Ajoute la commande à l'historique
 
-        if (strncmp(input, "exit", 4) == 0) {
+        /*if (strncmp(input, "exit", 4) == 0) {
             free(input);
             cmd_exit(0);  // Appel de la fonction cmd_exit pour quitter proprement
-        } else if (strncmp(input, "cd ", 3) == 0) {
+        } else*/ if (strncmp(input, "cd ", 3) == 0) {
             cmd_cd(input + 3);  // Appel de la commande cd
         } else if (strcmp(input, "pwd") == 0) {
             cmd_pwd();  // Appel de la commande cmd_pwd
