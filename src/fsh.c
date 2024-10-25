@@ -7,21 +7,20 @@
 #include <readline/history.h>
 
 int main() {
-    char *input;  // Pour stocker l'entrée de l'utilisateur
-    char prompt[256];  // Prompt du shell
+    char *input;  // Stock l'entrée de l'utilisateur
+    char prompt[256];  
 
     // Boucle principale du shell
     while (1) {
-        snprintf(prompt, sizeof(prompt), "fsh> ");  // Créez votre invite de commande
-        input = readline(prompt);  // Lire une ligne de commande
+        snprintf(prompt, sizeof(prompt), "fsh> ");  // 
+        input = readline(prompt);  // 
 
         if (input == NULL) {
             break;  // Sortie sur EOF (Ctrl-D)
         }
 
-        add_history(input);  // Ajoutez la commande à l'historique
+        add_history(input);  // Ajout de la commande à l'historique
 
-        // Traitez la commande
         if (strncmp(input, "exit", 4) == 0) {
             free(input);
             break;
@@ -30,10 +29,10 @@ int main() {
         } else if (strcmp(input, "pwd") == 0) {
             cmd_pwd();  // Appel de la commande pwd
         } else {
-            system(input);  // Exécutez les commandes externes
+            system(input); 
         }
 
-        free(input);  // Libérez la mémoire
+        free(input);  
     }
 
     return 0;
