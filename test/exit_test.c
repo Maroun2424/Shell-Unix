@@ -1,4 +1,4 @@
-#include <stdio.h>
+/*#include <stdio.h>
 #include "../include/commands.h"
 
 int main() {
@@ -11,3 +11,4 @@ int main() {
     printf("Erreur: cmd_exit() n'a pas arrêté le programme!\n");
     return 1;
 }
+*/
