@@ -3,12 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/types.h>       // Pour pid_t
-#include <sys/wait.h>        // Pour waitpid
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <signal.h>
-
 
 #define COLOR_GREEN "\001\033[32m\002"
 #define COLOR_RED "\001\033[91m\002"
@@ -18,7 +17,15 @@
 
 int last_exit_status = 0;  // Ce qui va nous permettre d'afficher [0] si l'opération précédente a réussi ou [1] si elle a échoué
 
-
+/**
+ * @brief Quitte le shell avec une valeur de retour spécifiée ou la dernière valeur de retour.
+ *
+ * @param exit_code Chaîne contenant la valeur de retour ou NULL pour utiliser last_exit_status.
+ */
+void cmd_exit(const char *exit_code_str) {
+    int exit_code = (exit_code_str) ? atoi(exit_code_str) : last_exit_status;
+    exit(exit_code);
+}
 
 void update_prompt(char *prompt, int last_exit_status, const char *current_dir) {
     const char *status_color = (last_exit_status == 0) ? COLOR_GREEN : COLOR_RED;
@@ -34,9 +41,7 @@ void update_prompt(char *prompt, int last_exit_status, const char *current_dir) 
 }
 
 void signal_handler(int signum) {
-    
 }
-
 
 int main() {
     char *input;  // Stocke l'entrée de l'utilisateur
@@ -53,17 +58,17 @@ int main() {
         input = readline(prompt);
 
         if (input == NULL) {
-            break;  // Sortie sur EOF (Ctrl-D)
+            cmd_exit(NULL);  // Exécuter exit sans paramètre sur Ctrl-D
+            break;
         }
 
         add_history(input);  // Ajoute la commande à l'historique
 
-        /*if (strncmp(input, "exit", 4) == 0) {
-            free(input);
-            cmd_exit(0);  // Appel de la fonction cmd_exit pour quitter proprement
-        } else*/
-
-        if (strncmp(input, "cd ", 3) == 0) {
+        if (strncmp(input, "exit", 4) == 0) {
+            char *exit_arg = input + 5; // Pointer juste après "exit "
+            while (*exit_arg == ' ') exit_arg++; // Ignorer les espaces
+            cmd_exit(*exit_arg ? exit_arg : NULL);  // Exécute exit avec ou sans paramètre
+        } else if (strncmp(input, "cd ", 3) == 0) {
             last_exit_status = cmd_cd(input + 3);  // Appel de la commande cd
         } else if (strcmp(input, "pwd") == 0) {
             last_exit_status = cmd_pwd();  // Appel de la commande cmd_pwd
@@ -94,4 +99,4 @@ int main() {
     }
 
     return 0;
-}  
+}
