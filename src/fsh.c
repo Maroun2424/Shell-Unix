@@ -44,6 +44,15 @@ void signal_handler(int signum) {
 }
 
 int main() {
+
+    struct sigaction sa;
+    sa.sa_handler = SIG_IGN;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+
     char *input;  // Stocke l'entrée de l'utilisateur
     char prompt[256];  
     char current_dir[1024];
@@ -77,6 +86,8 @@ int main() {
         } else {
             pid_t pid = fork();
             if (pid == 0) {
+                signal(SIGINT, SIG_DFL);
+                signal(SIGTERM, SIG_DFL);
                 // Processus enfant : exécute la commande
                 execlp("/bin/sh", "sh", "-c", input, (char *)NULL);
                 write(STDERR_FILENO, "Erreur: commande introuvable\n", 29);
@@ -90,6 +101,7 @@ int main() {
                 } else if (WIFSIGNALED(status)) {
                     last_exit_status = 128 + WTERMSIG(status);
                 }
+                update_prompt(prompt, last_exit_status, current_dir);
             } else {
                 write(STDERR_FILENO, "Erreur: échec du fork\n", 22);
             }
