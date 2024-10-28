@@ -30,16 +30,18 @@
  * @param path Pointeur vers la chaîne de caractères contenant le chemin
  *             du répertoire à changer.
  */
-void cmd_cd(const char *path) {
+int cmd_cd(const char *path) {
     int fd = open(path, O_RDONLY | O_DIRECTORY);
     if (fd == -1) {
         write(STDERR_FILENO, "Erreur: impossible d'ouvrir le répertoire\n", 42);
-        return;
+        write(STDERR_FILENO, "\n", 1);
+        return 1;
     }
     if (fchdir(fd) == -1) {
         write(STDERR_FILENO, "Erreur: impossible de changer de répertoire\n", 44);
     }
     close(fd);
+    return 0;
 }
 
 /**
@@ -94,7 +96,7 @@ void trim_whitespace(char *str) {
  *
  * @param path Pointeur vers la chaîne de caractères contenant le chemin à vérifier.
  */
-void cmd_ftype(const char *path) {
+int cmd_ftype(const char *path) {
     struct stat file_stat;
     char trimmed_path[PATH_MAX];
 
@@ -109,7 +111,7 @@ void cmd_ftype(const char *path) {
     if (lstat(trimmed_path, &file_stat) == -1) {
         printf("Le fichier '%s' n'a pas pu être trouvé dans le système.\n", trimmed_path);
         perror("Erreur lors de l'appel à lstat");
-        return;
+        return 1;
     }
 
     // Vérifie et affiche le type de fichier
@@ -140,4 +142,5 @@ void cmd_ftype(const char *path) {
     } else {
         write(STDOUT_FILENO, "type inconnu\n", 13);
     }
+    return 0;
 }
