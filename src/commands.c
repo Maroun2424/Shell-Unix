@@ -23,24 +23,54 @@
 /**
  * @brief Change le répertoire de travail.
  *
- * Modifie le répertoire de travail courant du processus
- * à celui spécifié par le chemin. Si le chemin est invalide ou si
- * une erreur survient, un message d'erreur est affiché.
+ * Modifie le répertoire de travail courant du processus vers celui spécifié par le chemin. 
+ * Si le chemin est invalide ou si une erreur survient, un message d'erreur est affiché. 
+ * Si "cd" est utilisé seul, le répertoire change pour HOME. Si "cd" est lancé avec "-", 
+ * il retourne au dernier répertoire visité.
  *
  * @param path Pointeur vers la chaîne de caractères contenant le chemin
  *             du répertoire à changer.
  */
+
+static char last_dir[MAX_PATH_LENGTH] = ""; // Stockage du dernier répertoire
+
 int cmd_cd(const char *path) {
-    int fd = open(path, O_RDONLY | O_DIRECTORY);
-    if (fd == -1) {
-        write(STDERR_FILENO, "Erreur: impossible d'ouvrir le répertoire\n", 42);
-        write(STDERR_FILENO, "\n", 1);
+    char current_dir[MAX_PATH_LENGTH];
+    if (getcwd(current_dir, sizeof(current_dir)) == NULL) {
+        perror("Erreur lors de la récupération du répertoire courant");
         return 1;
     }
-    if (fchdir(fd) == -1) {
-        write(STDERR_FILENO, "Erreur: impossible de changer de répertoire\n", 44);
+
+    // Si aucun argument n'est fourni, utiliser le répertoire HOME, sans afficher le chemin
+    if (path == NULL || strcmp(path, "") == 0) {
+        path = getenv("HOME");
+        if (path == NULL) {
+            fprintf(stderr, "Erreur: La variable HOME n'est pas définie.\n");
+            return 1;
+        }
+    } else if (strcmp(path, "-") == 0) { // Gestion de 'cd -' pour revenir au dernier répertoire
+        if (strlen(last_dir) == 0) {
+            fprintf(stderr, "Erreur: Aucun répertoire précédent enregistré.\n");
+            return 1;
+        }
+        path = last_dir;
+        if (chdir(path) != 0) {
+            perror("Erreur lors du changement de répertoire");
+            return 1;
+        }
+        if (getcwd(current_dir, sizeof(current_dir)) != NULL) {
+            printf("%s\n", current_dir); // Afficher seulement pour 'cd -'
+        }
+    } else {
+        if (chdir(path) != 0) {
+            perror("Erreur lors du changement de répertoire");
+            return 1;
+        }
     }
-    close(fd);
+
+    strncpy(last_dir, current_dir, sizeof(last_dir) - 1); // Mise à jour du dernier répertoire après le changement réussi
+    last_dir[sizeof(last_dir) - 1] = '\0';
+
     return 0;
 }
 
