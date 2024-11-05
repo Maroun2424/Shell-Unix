@@ -174,3 +174,34 @@ int cmd_ftype(const char *path) {
     }
     return 0;
 }
+
+/**
+ * Execute une commande simple pour chaque fichier dans un répertoire donné.
+ *
+ * @param directory Le chemin du répertoire à parcourir.
+ * @param command La commande à exécuter pour chaque fichier.
+ */
+void simple_for_loop(const char *directory, const char *command) {
+    DIR *dir;
+    struct dirent *entry;
+    char command_buffer[1024];
+
+    if ((dir = opendir(directory)) == NULL) {
+        perror("Failed to open directory");
+        return;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] == '.') {
+            continue; // Skip hidden files
+        }
+
+        // Construire la commande complète à exécuter pour le fichier
+        snprintf(command_buffer, sizeof(command_buffer), "%s %s/%s", command, directory, entry->d_name);
+
+        // Exécuter la commande
+        system(command_buffer);
+    }
+
+    closedir(dir);
+}
