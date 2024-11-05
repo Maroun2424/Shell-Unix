@@ -41,6 +41,22 @@ void update_prompt(char *prompt, int last_exit_status, const char *current_dir) 
 }
 
 void signal_handler(int signum) {
+    // À utiliser si nécessaire
+}
+
+// Fonction pour exécuter les commandes externes non intégrées
+int execute_external_command(const char *cmd) {
+    pid_t pid = fork();
+    if (pid == 0) {  // Processus enfant
+        execl("/bin/sh", "sh", "-c", cmd, NULL);
+        _exit(127);  // Si execl échoue
+    } else if (pid > 0) {  // Processus parent
+        int status;
+        waitpid(pid, &status, 0);
+        return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    } else {
+        return -1;  // Échec du fork
+    }
 }
 
 int main() {
@@ -82,33 +98,25 @@ int main() {
         } else if (strcmp(input, "pwd") == 0) {
             last_exit_status = cmd_pwd();  // Appel de la commande cmd_pwd
         } else if (strncmp(input, "ftype ", 6) == 0) {
-            last_exit_status = cmd_ftype(input + 6);  // Appel de la commande ftype avec le chemin fourni
-        } else {
-            pid_t pid = fork();
-            if (pid == 0) {
-                signal(SIGINT, SIG_DFL);
-                signal(SIGTERM, SIG_DFL);
-                // Processus enfant : exécute la commande
-                execlp("/bin/sh", "sh", "-c", input, (char *)NULL);
-                write(STDERR_FILENO, "Erreur: commande introuvable\n", 29);
-                _exit(127);  // Si execlp échoue
-            } else if (pid > 0) {
-                // Processus parent : attend la fin du processus enfant
-                int status;
-                waitpid(pid, &status, 0);
-                if (WIFEXITED(status)) {
-                    last_exit_status = WEXITSTATUS(status);
-                } else if (WIFSIGNALED(status)) {
-                    last_exit_status = 128 + WTERMSIG(status);
-                }
-                update_prompt(prompt, last_exit_status, current_dir);
+            last_exit_status = cmd_ftype(input + 6);
+        } else if (strncmp(input, "simplefor", 9) == 0) {
+            char *args = strtok(input + 10, " "); // +10 pour passer "simplefor "
+            char *directory = args;
+            char *command = strtok(NULL, "");
+
+            if (directory && command) {
+                simple_for_loop(directory, command);
+                last_exit_status = 0;  // Supposer que tout s'est bien passé
             } else {
-                write(STDERR_FILENO, "Erreur: échec du fork\n", 22);
+                fprintf(stderr, "Usage: simplefor <directory> <command>\n");
+                last_exit_status = 1;
             }
+        } else {
+            last_exit_status = execute_external_command(input);
         }
 
         free(input);  // Libère la mémoire allouée pour l'entrée utilisateur
     }
-
+    
     return 0;
 }
