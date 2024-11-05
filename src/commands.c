@@ -53,22 +53,17 @@ int cmd_cd(const char *path) {
             fprintf(stderr, "Erreur: Aucun répertoire précédent enregistré.\n");
             return 1;
         }
-        path = last_dir;
-        if (chdir(path) != 0) {
-            perror("Erreur lors du changement de répertoire");
-            return 1;
-        }
-        if (getcwd(current_dir, sizeof(current_dir)) != NULL) {
-            printf("%s\n", current_dir); // Afficher seulement pour 'cd -'
-        }
-    } else {
-        if (chdir(path) != 0) {
-            perror("Erreur lors du changement de répertoire");
-            return 1;
-        }
+        path = last_dir; 
     }
 
-    strncpy(last_dir, current_dir, sizeof(last_dir) - 1); // Mise à jour du dernier répertoire après le changement réussi
+    // Changement de répertoire
+    if (chdir(path) != 0) {
+        perror("Erreur lors du changement de répertoire");
+        return 1;
+    }
+
+    // Mise à jour du dernier répertoire visité
+    strncpy(last_dir, current_dir, sizeof(last_dir) - 1);
     last_dir[sizeof(last_dir) - 1] = '\0';
 
     return 0;
