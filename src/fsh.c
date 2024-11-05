@@ -93,8 +93,12 @@ int main() {
             char *exit_arg = input + 5; // Pointer juste après "exit "
             while (*exit_arg == ' ') exit_arg++; // Ignorer les espaces
             cmd_exit(*exit_arg ? exit_arg : NULL);  // Exécute exit avec ou sans paramètre
-        } else if (strncmp(input, "cd ", 3) == 0) {
-            last_exit_status = cmd_cd(input + 3);  // Appel de la commande cd
+        } else if (strncmp(input, "cd", 2) == 0) {
+            const char *path = strtok(input + 2, " ");
+            if (path != NULL && strcmp(path, "") != 0)
+                last_exit_status = cmd_cd(path);
+            else
+                last_exit_status = cmd_cd(NULL); 
         } else if (strcmp(input, "pwd") == 0) {
             last_exit_status = cmd_pwd();  // Appel de la commande cmd_pwd
         } else if (strncmp(input, "ftype ", 6) == 0) {
