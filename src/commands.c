@@ -58,7 +58,7 @@ int cmd_cd(const char *path) {
 
     // Changement de répertoire
     if (chdir(path) != 0) {
-        perror("Erreur lors du changement de répertoire");
+        perror("cd");
         return 1;
     }
 

@@ -12,8 +12,7 @@
 #define COLOR_GREEN "\001\033[32m\002"
 #define COLOR_RED "\001\033[91m\002"
 #define COLOR_BLUE "\001\033[34m\002"
-#define COLOR_CYAN "\001\033[36m\002"
-#define COLOR_RESET "\001\033[00m\002"
+#define COLOR_RESET "\001\033[0m\002"
 
 int last_exit_status = 0;  // Ce qui va nous permettre d'afficher [0] si l'opération précédente a réussi ou [1] si elle a échoué
 
@@ -27,18 +26,24 @@ void cmd_exit(const char *exit_code_str) {
     exit(exit_code);
 }
 
-void update_prompt(char *prompt, int last_exit_status, const char *current_dir) {
+void update_prompt(int last_exit_status, const char *current_dir) {
     const char *status_color = (last_exit_status == 0) ? COLOR_GREEN : COLOR_RED;
     char truncated_dir[256];
+    char prompt[512]; // Buffer suffisamment grand
 
     if (strlen(current_dir) > 30) {
         snprintf(truncated_dir, sizeof(truncated_dir), "...%s", current_dir + (strlen(current_dir) - 27));
     } else {
-        strncpy(truncated_dir, current_dir, sizeof(truncated_dir));
+        strncpy(truncated_dir, current_dir, sizeof(truncated_dir) - 1);
+        truncated_dir[sizeof(truncated_dir) - 1] = '\0'; // Assure la terminaison par un null
     }
 
-    snprintf(prompt, 256, "%s[%d] \033[34m%s\033[00m$ ", status_color, last_exit_status, truncated_dir);
+    int prompt_length = snprintf(prompt, sizeof(prompt), "%s[%d]%s%s%s$ ", status_color, last_exit_status, COLOR_BLUE, truncated_dir, COLOR_RESET);
+    
+    // Assurer que tout le prompt est écrit sur stderr
+    write(STDERR_FILENO, prompt, prompt_length);
 }
+
 
 void signal_handler(int signum) {
     // À utiliser si nécessaire
@@ -79,11 +84,12 @@ int main() {
         if (getcwd(current_dir, sizeof(current_dir)) == NULL) {
             perror("Erreur lors de la récupération du répertoire courant");
         }
-        update_prompt(prompt, last_exit_status, current_dir);
-        input = readline(prompt);
+        update_prompt(last_exit_status, current_dir);
+        input = readline(NULL);
 
         if (input == NULL) {
-            cmd_exit(NULL);  // Exécuter exit sans paramètre sur Ctrl-D
+            write(STDOUT_FILENO, "\n", 1); // Pour gérer Ctrl-D proprement
+            cmd_exit(NULL); // Exécuter exit sans paramètre sur Ctrl-D
             break;
         }
 
