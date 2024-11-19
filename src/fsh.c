@@ -8,6 +8,7 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <signal.h>
+#include <unistd.h>
 
 #define COLOR_GREEN "\001\033[32m\002"
 #define COLOR_RED "\001\033[91m\002"
@@ -26,23 +27,37 @@ void cmd_exit(const char *exit_code_str) {
     exit(exit_code);
 }
 
-void update_prompt(int last_exit_status, const char *current_dir) {
+char* update_prompt(int last_exit_status, const char *current_dir) {
+    static char prompt[512]; // Buffer statique pour le prompt
     const char *status_color = (last_exit_status == 0) ? COLOR_GREEN : COLOR_RED;
-    char truncated_dir[256];
-    char prompt[512]; // Buffer suffisamment grand
+    char truncated_dir[256] = "";
 
-    if (strlen(current_dir) > 30) {
-        snprintf(truncated_dir, sizeof(truncated_dir), "...%s", current_dir + (strlen(current_dir) - 27));
+    // Tronquer le répertoire si nécessaire
+    int len = strlen(current_dir);
+    if (len > 30) {
+        strcpy(truncated_dir, "...");
+        strcat(truncated_dir, current_dir + (len - 27));  // Ajoute la partie tronquée du répertoire
     } else {
-        strncpy(truncated_dir, current_dir, sizeof(truncated_dir) - 1);
-        truncated_dir[sizeof(truncated_dir) - 1] = '\0'; // Assure la terminaison par un null
+        strcpy(truncated_dir, current_dir);
     }
 
-    int prompt_length = snprintf(prompt, sizeof(prompt), "%s[%d]%s%s%s$ ", status_color, last_exit_status, COLOR_BLUE, truncated_dir, COLOR_RESET);
-    
-    // Assurer que tout le prompt est écrit sur stderr
-    write(STDERR_FILENO, prompt, prompt_length);
+    // Construire le prompt
+    strcpy(prompt, status_color);     // Début avec la couleur de statut
+    strcat(prompt, "[");
+    if (last_exit_status == 0) {
+        strcat(prompt, "0");          // Statut de succès
+    } else {
+        strcat(prompt, "1");          // Statut d'erreur
+    }
+    strcat(prompt, "]");
+    strcat(prompt, COLOR_BLUE);       // Couleur pour le répertoire
+    strcat(prompt, truncated_dir);    // Ajout du répertoire
+    strcat(prompt, COLOR_RESET);      // Reset la couleur
+    strcat(prompt, "$ ");             // Fin du prompt
+
+    return prompt; // Renvoie le prompt construit
 }
+
 
 
 void signal_handler(int signum) {
@@ -75,7 +90,7 @@ int main() {
     sigaction(SIGTERM, &sa, NULL);
 
     char *input;  // Stocke l'entrée de l'utilisateur
-    char prompt[256];  
+    char *prompt;  
     char current_dir[1024];
 
     // Boucle principale du shell
@@ -84,9 +99,11 @@ int main() {
         if (getcwd(current_dir, sizeof(current_dir)) == NULL) {
             perror("Erreur lors de la récupération du répertoire courant");
         }
-        update_prompt(last_exit_status, current_dir);
-        input = readline(NULL);
 
+        prompt = update_prompt(last_exit_status, current_dir);
+        fprintf(stderr, "%s", prompt);
+        input = readline(prompt);
+    
         if (input == NULL) {
             write(STDOUT_FILENO, "\n", 1); // Pour gérer Ctrl-D proprement
             cmd_exit(NULL); // Exécuter exit sans paramètre sur Ctrl-D
