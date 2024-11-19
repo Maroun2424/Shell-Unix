@@ -99,9 +99,8 @@ int main() {
         if (getcwd(current_dir, sizeof(current_dir)) == NULL) {
             perror("Erreur lors de la récupération du répertoire courant");
         }
-
+        rl_outstream = stderr;
         prompt = update_prompt(last_exit_status, current_dir);
-        fprintf(stderr, "%s", prompt);
         input = readline(prompt);
     
         if (input == NULL) {
