@@ -1,7 +1,7 @@
 Listes membres :
 
-\- Nabti Paul
+\- Arkam;        Rayane;        22221796;       @arkam
 
-\- Arkam Rayane
+\- Gebrayel;     Maroun;        22218173;       @gebrayel
 
-\- Gebrayel Maroun
+\- Nabti;        Paul;          22202298;       @nabti
