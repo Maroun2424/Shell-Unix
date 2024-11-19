@@ -1,4 +1,5 @@
-#include "../include/commands.h"
+#include "../include/commandes_internes.h"
+#include "../include/commandes_externes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,7 +9,6 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <signal.h>
-#include <unistd.h>
 
 #define COLOR_GREEN "\001\033[32m\002"
 #define COLOR_RED "\001\033[91m\002"
@@ -64,21 +64,6 @@ void signal_handler(int signum) {
     // À utiliser si nécessaire
 }
 
-// Fonction pour exécuter les commandes externes non intégrées
-int execute_external_command(const char *cmd) {
-    pid_t pid = fork();
-    if (pid == 0) {  // Processus enfant
-        execl("/bin/sh", "sh", "-c", cmd, NULL);
-        _exit(127);  // Si execl échoue
-    } else if (pid > 0) {  // Processus parent
-        int status;
-        waitpid(pid, &status, 0);
-        return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-    } else {
-        return -1;  // Échec du fork
-    }
-}
-
 int main() {
 
     struct sigaction sa;
@@ -90,7 +75,6 @@ int main() {
     sigaction(SIGTERM, &sa, NULL);
 
     char *input;  // Stocke l'entrée de l'utilisateur
-    char *prompt;  
     char current_dir[1024];
 
     // Boucle principale du shell
@@ -99,8 +83,8 @@ int main() {
         if (getcwd(current_dir, sizeof(current_dir)) == NULL) {
             perror("Erreur lors de la récupération du répertoire courant");
         }
-        rl_outstream = stderr;
-        prompt = update_prompt(last_exit_status, current_dir);
+
+        char *prompt = update_prompt(last_exit_status, current_dir);
         input = readline(prompt);
     
         if (input == NULL) {

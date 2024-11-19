@@ -6,4 +6,4 @@ int cmd_pwd();
 //void cmd_exit(int exit_code);
 int cmd_ftype(const char *path);
 
-#endif // COMMANDS_H
+#endif

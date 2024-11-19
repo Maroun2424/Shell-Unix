@@ -1,7 +1,7 @@
 # Définition des variables
 CC = gcc
 CFLAGS = -I./include -Wall -Wextra
-SRC = src/fsh.c src/commands.c
+SRC = src/fsh.c src/commandes_internes.c src/commandes_externes.c
 OBJ = $(SRC:.c=.o)
 TARGET = fsh
 

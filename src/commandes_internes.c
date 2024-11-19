@@ -1,4 +1,4 @@
-#include "../include/commands.h"
+#include "../include/commandes_internes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -141,11 +141,14 @@ int cmd_ftype(const char *path) {
 
     // Vérifie et affiche le type de fichier
     if (S_ISDIR(file_stat.st_mode)) {
-        write(STDOUT_FILENO, "répertoire\n", 11);
+        write(STDOUT_FILENO, "répertoire", 11);
+        write(STDOUT_FILENO, "\n",1);
     } else if (S_ISREG(file_stat.st_mode)) {
         write(STDOUT_FILENO, "fichier ordinaire\n", 18);
+        write(STDOUT_FILENO, "\n",1);
     } else if (S_ISLNK(file_stat.st_mode)) {
         write(STDOUT_FILENO, "lien symbolique\n", 16);
+        write(STDOUT_FILENO, "\n",1);
         
         // Affiche le chemin que le lien symbolique pointe
         char link_target[PATH_MAX];
