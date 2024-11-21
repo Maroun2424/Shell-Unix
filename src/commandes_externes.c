@@ -14,7 +14,7 @@
 int execute_external_command(const char *cmd) {
     pid_t pid = fork();
     if (pid == 0) {  // Processus enfant
-        execl("/bin/sh", "sh", "-c", cmd, NULL);
+        execvp(cmd[0], cmd);
         perror("Execl a échoué");  // Si execl échoue
         exit(127);  // Sort avec un code d'erreur spécifique
     } else if (pid > 0) {  // Processus parent
