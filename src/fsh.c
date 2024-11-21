@@ -1,6 +1,4 @@
 #include "../include/commandes_internes.h"
-#include "../include/commandes_externes.h"
-#include "handle.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -85,7 +83,8 @@ void process_command(char *input) {
             fprintf(stderr, "Erreur : Trop d'arguments pour 'cd'\n");
             last_exit_status = 1;
         } else {
-            last_exit_status = cmd_cd(args[1]);
+            const char *path = arg_count > 1 ? args[1] : NULL; // Si aucun argument, passer NULL
+            last_exit_status = cmd_cd(path);
         }
     } else if (strcmp(args[0], "pwd") == 0) {
         if (arg_count > 1) {

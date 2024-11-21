@@ -32,13 +32,13 @@
  *             du répertoire à changer.
  */
 
-static char last_dir[MAX_PATH_LENGTH] = ""; // Stockage du dernier répertoire
-
 int cmd_cd(const char *path) {
+    static char previous_path[PATH_MAX];
+    char current_path[MAX_PATH_LENGTH];
 
-    char current_dir[MAX_PATH_LENGTH];
-    if (getcwd(current_dir, sizeof(current_dir)) == NULL) {
-        perror("cd: Erreur lors de la récupération du répertoire courant");
+    // Récupérer le répertoire courant pour mise à jour après le changement
+    if (getcwd(current_path, sizeof(current_path)) == NULL) {
+        perror("cd"); // Utilisation de perror pour les erreurs système
         return 1;
     }
 
@@ -46,50 +46,32 @@ int cmd_cd(const char *path) {
     if (path == NULL || strcmp(path, "") == 0) {
         path = getenv("HOME");
         if (path == NULL) {
-            fprintf(stderr, "cd: HOME not set\n");
+            perror("cd"); // HOME manquant, utiliser perror
             return 1;
         }
-    } else if (strcmp(path, "-") == 0) { // Gestion de 'cd -' pour revenir au dernier répertoire
-        if (strlen(last_dir) == 0) {
+    } 
+    // Gestion de 'cd -' pour revenir au dernier répertoire visité
+    else if (strcmp(path, "-") == 0) {
+        if (strlen(previous_path) == 0) {
             fprintf(stderr, "cd: OLDPWD not set\n");
             return 1;
         }
-        // Afficher l'ancien répertoire
-        printf("%s\n", last_dir);
-
-        path = last_dir; 
+        printf("%s\n", previous_path); // Afficher l'ancien répertoire
+        path = previous_path; 
     }
 
-    // Vérification si le chemin existe
-    if (access(path, F_OK) != 0) {
-        fprintf(stderr, "cd: No such file or directory: %s\n", path); // Remplace perror
-        return 1;
-    }
-
-    // Vérification si le chemin est un répertoire
-    struct stat path_stat;
-    if (stat(path, &path_stat) != 0) {
-        fprintf(stderr, "cd: Erreur lors de la vérification du chemin: %s\n", path); // Remplace perror
-        return 1;
-    }
-    if (!S_ISDIR(path_stat.st_mode)) {
-        fprintf(stderr, "cd: Not a directory: %s\n", path);
-        return 1;
-    }
-
-    // Changement de répertoire
+    // Essayer de changer de répertoire
     if (chdir(path) != 0) {
-        fprintf(stderr, "cd: Erreur lors du changement de répertoire: %s\n", path); // Remplace perror
+        perror("cd"); // Utilisation de perror pour chdir
         return 1;
     }
 
-    // Mise à jour du dernier répertoire visité
-    strncpy(last_dir, current_dir, sizeof(last_dir) - 1);
-    last_dir[sizeof(last_dir) - 1] = '\0';
+    // Mettre à jour le dernier répertoire visité
+    strncpy(previous_path, current_path, sizeof(previous_path) - 1);
+    previous_path[sizeof(previous_path) - 1] = '\0';
 
     return 0;
 }
-
 
 
 /**
