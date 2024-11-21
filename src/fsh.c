@@ -1,5 +1,6 @@
 #include "../include/commandes_internes.h"
 #include "../include/commandes_externes.h"
+#include "handle.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,12 +9,14 @@
 #include <sys/wait.h>
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <stdbool.h>
 #include <signal.h>
 
 #define COLOR_GREEN "\001\033[32m\002"
 #define COLOR_RED "\001\033[91m\002"
 #define COLOR_BLUE "\001\033[34m\002"
 #define COLOR_RESET "\001\033[0m\002"
+#define MAX_PROMPT_LENGTH 512
 
 int last_exit_status = 0;  // Ce qui va nous permettre d'afficher [0] si l'opération précédente a réussi ou [1] si elle a échoué
 
@@ -59,6 +62,69 @@ char* update_prompt(int last_exit_status, const char *current_dir) {
 }
 
 
+void process_command(char *input) {
+    char *args[100];
+    int arg_count = 0;
+    bool first_token = true;
+
+    // Découper la commande en arguments
+    char *command;
+    while ((command = strtok(first_token ? input : NULL, " ")) != NULL && arg_count < 100) {
+        args[arg_count++] = command;
+        first_token = false;
+    }
+    args[arg_count] = NULL; // Finir la liste des arguments avec NULL
+
+    if (args[0] == NULL) {
+        return; // Pas de commande à exécuter
+    }
+
+    /** Commandes internes **/
+    if (strcmp(args[0], "cd") == 0) {
+        if (arg_count > 2) {
+            fprintf(stderr, "Erreur : Trop d'arguments pour 'cd'\n");
+            last_exit_status = 1;
+        } else {
+            last_exit_status = cmd_cd(args[1]);
+        }
+    } else if (strcmp(args[0], "pwd") == 0) {
+        if (arg_count > 1) {
+            fprintf(stderr, "Erreur : Trop d'arguments pour 'pwd'\n");
+            last_exit_status = 1;
+        } else {
+            last_exit_status = cmd_pwd();
+        }
+    } else if (strcmp(args[0], "exit") == 0) {
+        if (arg_count > 2) {
+            fprintf(stderr, "Erreur : Trop d'arguments pour 'exit'\n");
+            last_exit_status = 1;
+        } else {
+            int exit_val = args[1] ? atoi(args[1]) : last_exit_status;
+            exit(exit_val);
+        }
+    } else {
+        /** Commandes externes **/
+        pid_t pid = fork();
+
+        if (pid == 0) { // Processus enfant
+            execvp(args[0], args); // Tenter d'exécuter la commande
+            perror("execvp");
+            exit(EXIT_FAILURE); // Quitter en cas d'échec
+        } else if (pid > 0) { // Processus parent
+            int status;
+            waitpid(pid, &status, 0); // Attendre que l'enfant se termine
+            if (WIFEXITED(status)) {
+                last_exit_status = WEXITSTATUS(status); // Récupérer le code de retour
+            } else {
+                last_exit_status = 1;
+            }
+        } else { // Échec de fork
+            perror("fork");
+            last_exit_status = 1;
+        }
+    }
+}
+
 
 void signal_handler(int signum) {
     // À utiliser si nécessaire
@@ -73,60 +139,44 @@ int main() {
 
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
-
     char *input;  // Stocke l'entrée de l'utilisateur
     char current_dir[1024];
 
     // Boucle principale du shell
     while (1) {
-        
-        if (getcwd(current_dir, sizeof(current_dir)) == NULL) {
-            perror("Erreur lors de la récupération du répertoire courant");
-        }
-        rl_outstream = stderr;
-        char *prompt = update_prompt(last_exit_status, current_dir);
-        input = readline(prompt);
-    
-        if (input == NULL) {
-            write(STDOUT_FILENO, "\n", 1); // Pour gérer Ctrl-D proprement
-            cmd_exit(NULL); // Exécuter exit sans paramètre sur Ctrl-D
-            break;
-        }
-
-        add_history(input);  // Ajoute la commande à l'historique
-
-        if (strncmp(input, "exit", 4) == 0) {
-            char *exit_arg = input + 5; // Pointer juste après "exit "
-            while (*exit_arg == ' ') exit_arg++; // Ignorer les espaces
-            cmd_exit(*exit_arg ? exit_arg : NULL);  // Exécute exit avec ou sans paramètre
-        } else if (strncmp(input, "cd", 2) == 0) {
-            const char *path = strtok(input + 2, " ");
-            if (path != NULL && strcmp(path, "") != 0)
-                last_exit_status = cmd_cd(path);
-            else
-                last_exit_status = cmd_cd(NULL); 
-        } else if (strcmp(input, "pwd") == 0) {
-            last_exit_status = cmd_pwd();  // Appel de la commande cmd_pwd
-        } else if (strncmp(input, "ftype ", 6) == 0) {
-            last_exit_status = cmd_ftype(input + 6);
-        } else if (strncmp(input, "simplefor", 9) == 0) {
-            char *args = strtok(input + 10, " "); // +10 pour passer "simplefor "
-            char *directory = args;
-            char *command = strtok(NULL, "");
-
-            if (directory && command) {
-                simple_for_loop(directory, command);
-                last_exit_status = 0;  // Supposer que tout s'est bien passé
-            } else {
-                fprintf(stderr, "Usage: simplefor <directory> <command>\n");
-                last_exit_status = 1;
-            }
-        } else {
-            last_exit_status = execute_external_command(input);
-        }
-
-        free(input);  // Libère la mémoire allouée pour l'entrée utilisateur
+    // Récupérer le répertoire courant
+    if (getcwd(current_dir, sizeof(current_dir)) == NULL) {
+        perror("Erreur lors de la récupération du répertoire courant");
+        continue;  // Passer à la prochaine itération en cas d'erreur
     }
-    
+
+    // Générer l'invite de commande
+    rl_outstream = stderr;
+    char *prompt = update_prompt(last_exit_status, current_dir);
+    input = readline(prompt);
+
+    // Gérer Ctrl-D (input == NULL)
+    if (input == NULL) {
+        write(STDOUT_FILENO, "\n", 1);  // Affiche une nouvelle ligne propre
+        cmd_exit(NULL);  // Quitte le shell
+        break;
+    }
+
+    // Si la commande est vide, continuer la boucle sans la traiter
+    if (strcmp(input, "") == 0) {
+        free(input);
+        continue;
+    }
+
+    if(strcmp(input, "") != 0) {
+        add_history(input);
+        process_command(input);
+    }
+
+    // Libérer la mémoire allouée pour l'entrée utilisateur
+    free(input);
+}
+
+
     return 0;
 }

@@ -2,7 +2,7 @@
 
 CC = gcc
 CFLAGS = -I./include -Wall -Wextra
-SRC = src/fsh.c src/commandes_internes.c src/commandes_externes.c
+SRC = src/fsh.c src/commandes_internes.c src/commandes_externes.c src/handle.c
 OBJ = $(SRC:.c=.o)
 TARGET = fsh
 

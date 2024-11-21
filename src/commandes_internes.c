@@ -58,7 +58,7 @@ int cmd_cd(const char *path) {
 
     // Vérification si le chemin existe
     if (access(path, F_OK) != 0) {
-        fprintf(stderr, "cd: no such file or directory: %s\n", path);
+        perror("cd: No such file or directory");
         return 1;
     }
 
