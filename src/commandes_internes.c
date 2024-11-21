@@ -35,9 +35,10 @@
 static char last_dir[MAX_PATH_LENGTH] = ""; // Stockage du dernier répertoire
 
 int cmd_cd(const char *path) {
+
     char current_dir[MAX_PATH_LENGTH];
     if (getcwd(current_dir, sizeof(current_dir)) == NULL) {
-        perror("Erreur lors de la récupération du répertoire courant");
+        perror("cd: Erreur lors de la récupération du répertoire courant");
         return 1;
     }
 
@@ -53,29 +54,32 @@ int cmd_cd(const char *path) {
             fprintf(stderr, "cd: OLDPWD not set\n");
             return 1;
         }
+        // Afficher l'ancien répertoire
+        printf("%s\n", last_dir);
+
         path = last_dir; 
     }
 
     // Vérification si le chemin existe
     if (access(path, F_OK) != 0) {
-        perror("cd: No such file or directory");
+        fprintf(stderr, "cd: No such file or directory: %s\n", path); // Remplace perror
         return 1;
     }
 
     // Vérification si le chemin est un répertoire
     struct stat path_stat;
     if (stat(path, &path_stat) != 0) {
-        perror("cd: erreur lors de la vérification du chemin");
+        fprintf(stderr, "cd: Erreur lors de la vérification du chemin: %s\n", path); // Remplace perror
         return 1;
     }
     if (!S_ISDIR(path_stat.st_mode)) {
-        fprintf(stderr, "cd: not a directory: %s\n", path);
+        fprintf(stderr, "cd: Not a directory: %s\n", path);
         return 1;
     }
 
     // Changement de répertoire
     if (chdir(path) != 0) {
-        perror("cd: erreur lors du changement de répertoire");
+        fprintf(stderr, "cd: Erreur lors du changement de répertoire: %s\n", path); // Remplace perror
         return 1;
     }
 
@@ -85,6 +89,7 @@ int cmd_cd(const char *path) {
 
     return 0;
 }
+
 
 
 /**
