@@ -1,22 +1,26 @@
 # Définition des variables
-
 CC = gcc
 CFLAGS = -I./include -Wall -Wextra
-SRC = src/fsh.c src/commandes_internes.c 
-OBJ = $(SRC:.c=.o)
+SRCDIR = src
+BINDIR = .bin
 TARGET = fsh
 
+# Liste des fichiers sources et transformation en fichiers objets dans le répertoire .bin
+SRC = $(wildcard $(SRCDIR)/*.c)
+OBJ = $(SRC:$(SRCDIR)/%.c=$(BINDIR)/%.o)
+
 # Règle par défaut pour construire l'exécutable
-
 $(TARGET): $(OBJ)
-	$(CC) $(OBJ) -o $(TARGET) -lreadline
+	$(CC) $^ -o $@ -lreadline
 
-# Règle pour compiler les fichiers objets
-
-src/%.o: src/%.c
+# Règle pour compiler les fichiers objets et les placer dans .bin
+$(BINDIR)/%.o: $(SRCDIR)/%.c | $(BINDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Nettoyer les fichiers compilés
+# Créer le répertoire .bin si nécessaire
+$(BINDIR):
+	mkdir -p $(BINDIR)
 
+# Nettoyer les fichiers compilés
 clean:
-	rm -f $(OBJ) $(TARGET)
+	rm -f $(BINDIR)/*.o $(TARGET)
