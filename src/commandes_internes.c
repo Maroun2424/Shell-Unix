@@ -41,24 +41,41 @@ int cmd_cd(const char *path) {
         return 1;
     }
 
-    // Si aucun argument n'est fourni, utiliser le répertoire HOME, sans afficher le chemin
+    // Si aucun argument n'est fourni, utiliser le répertoire HOME
     if (path == NULL || strcmp(path, "") == 0) {
         path = getenv("HOME");
         if (path == NULL) {
-            fprintf(stderr, "Erreur: La variable HOME n'est pas définie.\n");
+            fprintf(stderr, "cd: HOME not set\n");
             return 1;
         }
     } else if (strcmp(path, "-") == 0) { // Gestion de 'cd -' pour revenir au dernier répertoire
         if (strlen(last_dir) == 0) {
-            fprintf(stderr, "Erreur: Aucun répertoire précédent enregistré.\n");
+            fprintf(stderr, "cd: OLDPWD not set\n");
             return 1;
         }
         path = last_dir; 
     }
 
+    // Vérification si le chemin existe
+    if (access(path, F_OK) != 0) {
+        fprintf(stderr, "cd: no such file or directory: %s\n", path);
+        return 1;
+    }
+
+    // Vérification si le chemin est un répertoire
+    struct stat path_stat;
+    if (stat(path, &path_stat) != 0) {
+        perror("cd: erreur lors de la vérification du chemin");
+        return 1;
+    }
+    if (!S_ISDIR(path_stat.st_mode)) {
+        fprintf(stderr, "cd: not a directory: %s\n", path);
+        return 1;
+    }
+
     // Changement de répertoire
-    else if (chdir(path) != 0) {
-        perror("cd");
+    if (chdir(path) != 0) {
+        perror("cd: erreur lors du changement de répertoire");
         return 1;
     }
 
@@ -68,6 +85,7 @@ int cmd_cd(const char *path) {
 
     return 0;
 }
+
 
 /**
  * @brief Obtient et affiche le chemin du répertoire courant.
@@ -81,7 +99,7 @@ int cmd_pwd() {
     char path[MAX_PATH_LENGTH];
 
     if (getcwd(path, sizeof(path)) == NULL) {
-        write(STDERR_FILENO, "Erreur: impossible d'obtenir le chemin actuel\n", 46);
+        perror("Erreur lors de la récupération du chemin actuel");
         return 1;
     }
 
@@ -134,7 +152,6 @@ int cmd_ftype(const char *path) {
 
     // Tente d'obtenir les informations de statut pour le fichier ou répertoire
     if (lstat(trimmed_path, &file_stat) == -1) {
-        printf("Le fichier '%s' n'a pas pu être trouvé dans le système.\n", trimmed_path);
         perror("Erreur lors de l'appel à lstat");
         return 1;
     }
@@ -185,7 +202,7 @@ void simple_for_loop(const char *directory, const char *command) {
     char command_buffer[1024];
 
     if ((dir = opendir(directory)) == NULL) {
-        perror("Failed to open directory");
+        perror("Erreur lors de l'ouverture du répertoire");
         return;
     }
 
@@ -198,7 +215,9 @@ void simple_for_loop(const char *directory, const char *command) {
         snprintf(command_buffer, sizeof(command_buffer), "%s %s/%s", command, directory, entry->d_name);
 
         // Exécuter la commande
-        system(command_buffer);
+        if (system(command_buffer) == -1) {
+            perror("Erreur lors de l'exécution de la commande");
+        }
     }
 
     closedir(dir);
