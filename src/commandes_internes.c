@@ -11,9 +11,15 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <ctype.h>
+#include <linux/limits.h> 
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
+#include <sys/stat.h>
 #include <linux/limits.h>
 
-#define MAX_PATH_LENGTH 1024  
+#define MAX_PATH_LENGTH 1024
 
 // Assure que O_DIRECTORY est défini pour open
 #ifndef O_DIRECTORY
@@ -32,46 +38,44 @@
  *             du répertoire à changer.
  */
 
+
 int cmd_cd(const char *path) {
-    static char previous_path[PATH_MAX];
+
+    static char previous_path[MAX_PATH_LENGTH];
     char current_path[MAX_PATH_LENGTH];
 
-    // Récupérer le répertoire courant pour mise à jour après le changement
     if (getcwd(current_path, sizeof(current_path)) == NULL) {
-        perror("cd"); // Utilisation de perror pour les erreurs système
+        perror("cd: Error retrieving the current directory");
         return 1;
     }
 
-    // Si aucun argument n'est fourni, utiliser le répertoire HOME
     if (path == NULL || strcmp(path, "") == 0) {
         path = getenv("HOME");
         if (path == NULL) {
-            perror("cd"); // HOME manquant, utiliser perror
+            fprintf(stderr, "cd: HOME not set\n");
             return 1;
         }
-    } 
-    // Gestion de 'cd -' pour revenir au dernier répertoire visité
-    else if (strcmp(path, "-") == 0) {
+    } else if (strcmp(path, "-") == 0) {
         if (strlen(previous_path) == 0) {
             fprintf(stderr, "cd: OLDPWD not set\n");
             return 1;
         }
-        printf("%s\n", previous_path); // Afficher l'ancien répertoire
-        path = previous_path; 
+        path = previous_path;
     }
 
-    // Essayer de changer de répertoire
     if (chdir(path) != 0) {
-        perror("cd"); // Utilisation de perror pour chdir
+        perror("cd");
         return 1;
     }
 
-    // Mettre à jour le dernier répertoire visité
     strncpy(previous_path, current_path, sizeof(previous_path) - 1);
     previous_path[sizeof(previous_path) - 1] = '\0';
 
     return 0;
 }
+
+
+
 
 
 /**
@@ -128,51 +132,37 @@ void trim_whitespace(char *str) {
  */
 int cmd_ftype(const char *path) {
     struct stat file_stat;
-    char trimmed_path[PATH_MAX];
+    char trimmed_path[MAX_PATH_LENGTH];
 
     // Copie du chemin et suppression des espaces
     strncpy(trimmed_path, path, sizeof(trimmed_path));
     trim_whitespace(trimmed_path);
 
-    // Affiche le chemin complet pour le débogage
-    fprintf(stderr, "Vérification du type pour : '%s'\n", trimmed_path);
-
     // Tente d'obtenir les informations de statut pour le fichier ou répertoire
     if (lstat(trimmed_path, &file_stat) == -1) {
-        perror("Erreur lors de l'appel à lstat");
+        perror("ftype");
         return 1;
     }
 
     // Vérifie et affiche le type de fichier
     if (S_ISDIR(file_stat.st_mode)) {
-        write(STDOUT_FILENO, "répertoire", 11);
-        write(STDOUT_FILENO, "\n",1);
+        write(STDOUT_FILENO, "directory", 9);
+        write(STDOUT_FILENO, "\n", 1);
     } else if (S_ISREG(file_stat.st_mode)) {
-        write(STDOUT_FILENO, "fichier ordinaire\n", 18);
-        write(STDOUT_FILENO, "\n",1);
+        write(STDOUT_FILENO, "regular file", 12);
+        write(STDOUT_FILENO, "\n", 1);
     } else if (S_ISLNK(file_stat.st_mode)) {
-        write(STDOUT_FILENO, "lien symbolique\n", 16);
-        write(STDOUT_FILENO, "\n",1);
-        
-        // Affiche le chemin que le lien symbolique pointe
-        char link_target[PATH_MAX];
-        ssize_t len = readlink(trimmed_path, link_target, sizeof(link_target) - 1);
-        if (len != -1) {
-            link_target[len] = '\0'; // Null-terminate the target string
-            printf("Pointe vers : %s\n", link_target);
-        } else {
-            perror("Erreur lors de la lecture du lien symbolique");
-        }
-    } else if (S_ISCHR(file_stat.st_mode)) {
-        write(STDOUT_FILENO, "périphérique de caractère\n", 27);
-    } else if (S_ISBLK(file_stat.st_mode)) {
-        write(STDOUT_FILENO, "périphérique de bloc\n", 21);
+        write(STDOUT_FILENO, "symbolic link", 13);
+        write(STDOUT_FILENO, "\n", 1);
     } else if (S_ISFIFO(file_stat.st_mode)) {
-        write(STDOUT_FILENO, "FIFO (tube nommé)\n", 19);
+        write(STDOUT_FILENO, "named pipe", 10);
+        write(STDOUT_FILENO, "\n", 1);
     } else if (S_ISSOCK(file_stat.st_mode)) {
-        write(STDOUT_FILENO, "socket\n", 7);
+        write(STDOUT_FILENO, "socket", 6);
+        write(STDOUT_FILENO, "\n", 1);
     } else {
-        write(STDOUT_FILENO, "type inconnu\n", 13);
+        write(STDOUT_FILENO, "other", 5);
+        write(STDOUT_FILENO, "\n", 1);
     }
     return 0;
 }
@@ -183,14 +173,15 @@ int cmd_ftype(const char *path) {
  * @param directory Le chemin du répertoire à parcourir.
  * @param command La commande à exécuter pour chaque fichier.
  */
-void simple_for_loop(const char *directory, const char *command) {
+int simple_for_loop(const char *command,const char *directory) {
     DIR *dir;
     struct dirent *entry;
     char command_buffer[1024];
 
-    if ((dir = opendir(directory)) == NULL) {
-        perror("Erreur lors de l'ouverture du répertoire");
-        return;
+    dir = opendir(directory);
+    if (dir == NULL) {
+        perror("Error opening directory");
+        return -1; // Return an error status
     }
 
     while ((entry = readdir(dir)) != NULL) {
@@ -198,14 +189,21 @@ void simple_for_loop(const char *directory, const char *command) {
             continue; // Skip hidden files
         }
 
-        // Construire la commande complète à exécuter pour le fichier
-        snprintf(command_buffer, sizeof(command_buffer), "%s %s/%s", command, directory, entry->d_name);
+        // Build the full command to execute for each file
+        int command_length = snprintf(command_buffer, sizeof(command_buffer), "%s %s/%s", command, directory, entry->d_name);
+        if (command_length >= sizeof(command_buffer)) {
+            fprintf(stderr, "Command buffer overflow\n");
+            return -1; // Set error status due to buffer overflow
+            break; // Exit the loop to avoid executing an incomplete command
+        }
 
-        // Exécuter la commande
+        // Execute the command
         if (system(command_buffer) == -1) {
-            perror("Erreur lors de l'exécution de la commande");
+            perror("Error executing command");
+            return -1; // Set error status due to command execution failure
         }
     }
 
     closedir(dir);
+    return 0; // Return the final status of the operation
 }

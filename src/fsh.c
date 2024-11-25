@@ -35,9 +35,9 @@ char* update_prompt(int last_exit_status, const char *current_dir) {
 
     // Tronquer le répertoire si nécessaire
     int len = strlen(current_dir);
-    if (len > 30) {
+    if (len > 29) {
         strcpy(truncated_dir, "...");
-        strcat(truncated_dir, current_dir + (len - 27));  // Ajoute la partie tronquée du répertoire
+        strcat(truncated_dir, current_dir + (len - 22));  // Ajoute la partie tronquée du répertoire
     } else {
         strcpy(truncated_dir, current_dir);
     }
@@ -65,59 +65,73 @@ void process_command(char *input) {
     int arg_count = 0;
     bool first_token = true;
 
-    // Découper la commande en arguments
+    // Split the command into arguments
     char *command;
     while ((command = strtok(first_token ? input : NULL, " ")) != NULL && arg_count < 100) {
         args[arg_count++] = command;
         first_token = false;
     }
-    args[arg_count] = NULL; // Finir la liste des arguments avec NULL
+    args[arg_count] = NULL; // Terminate the arguments list with NULL
 
     if (args[0] == NULL) {
-        return; // Pas de commande à exécuter
+        return; // No command to execute
     }
 
-    /** Commandes internes **/
+    /** Internal Commands **/
     if (strcmp(args[0], "cd") == 0) {
         if (arg_count > 2) {
-            fprintf(stderr, "Erreur : Trop d'arguments pour 'cd'\n");
+            fprintf(stderr, "Error: Too many arguments for 'cd'\n");
             last_exit_status = 1;
         } else {
-            const char *path = arg_count > 1 ? args[1] : NULL; // Si aucun argument, passer NULL
+            const char *path = arg_count > 1 ? args[1] : NULL; // If no argument, pass NULL
             last_exit_status = cmd_cd(path);
         }
     } else if (strcmp(args[0], "pwd") == 0) {
         if (arg_count > 1) {
-            fprintf(stderr, "Erreur : Trop d'arguments pour 'pwd'\n");
+            fprintf(stderr, "Error: Too many arguments for 'pwd'\n");
             last_exit_status = 1;
         } else {
             last_exit_status = cmd_pwd();
         }
     } else if (strcmp(args[0], "exit") == 0) {
         if (arg_count > 2) {
-            fprintf(stderr, "Erreur : Trop d'arguments pour 'exit'\n");
+            fprintf(stderr, "Error: Too many arguments for 'exit'\n");
             last_exit_status = 1;
         } else {
             int exit_val = args[1] ? atoi(args[1]) : last_exit_status;
             exit(exit_val);
         }
+    } else if (strcmp(args[0], "for") == 0) {
+        if (arg_count != 3) {  // Assuming command takes exactly two arguments
+            fprintf(stderr, "Usage: for <directory> <command>\n");
+            last_exit_status = 1;
+        } else {
+            last_exit_status = simple_for_loop(args[1], args[2]);
+        }
+    } else if (strcmp(args[0], "ftype") == 0) {
+        if (arg_count != 2) {
+            fprintf(stderr, "Erreur : La commande 'ftype' nécessite exactement un argument.\n");
+            last_exit_status = 1;
+        } else {
+            last_exit_status = cmd_ftype(args[1]);
+        }
     } else {
-        /** Commandes externes **/
+        /** External Commands **/
         pid_t pid = fork();
 
-        if (pid == 0) { // Processus enfant
-            execvp(args[0], args); // Tenter d'exécuter la commande
+        if (pid == 0) { // Child process
+            execvp(args[0], args); // Try to execute the command
             perror("execvp");
-            exit(EXIT_FAILURE); // Quitter en cas d'échec
-        } else if (pid > 0) { // Processus parent
+            exit(EXIT_FAILURE); // Exit if failure
+        } else if (pid > 0) { // Parent process
             int status;
-            waitpid(pid, &status, 0); // Attendre que l'enfant se termine
+            waitpid(pid, &status, 0); // Wait for the child to finish
             if (WIFEXITED(status)) {
-                last_exit_status = WEXITSTATUS(status); // Récupérer le code de retour
+                last_exit_status = WEXITSTATUS(status); // Retrieve the return code
             } else {
                 last_exit_status = 1;
             }
-        } else { // Échec de fork
+        } else { // Fork failed
             perror("fork");
             last_exit_status = 1;
         }
@@ -125,7 +139,8 @@ void process_command(char *input) {
 }
 
 
-void signal_handler(int signum) {
+
+void signal_handler() {
     // À utiliser si nécessaire
 }
 
