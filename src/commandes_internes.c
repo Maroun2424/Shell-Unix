@@ -167,13 +167,13 @@ int cmd_ftype(const char *path) {
     return 0;
 }
 
-/**
- * Execute une commande simple pour chaque fichier dans un répertoire donné.
- *
- * @param directory Le chemin du répertoire à parcourir.
- * @param command La commande à exécuter pour chaque fichier.
- */
-int simple_for_loop(const char *command,const char *directory) {
+int simple_for_loop(char *args[]) {
+    if (!args || !args[1] || !args[2] || !args[3] || !args[5] || !args[6]) {
+        fprintf(stderr, "Invalid arguments\n");
+        return -1;
+    }
+
+    const char *directory = args[3];
     DIR *dir;
     struct dirent *entry;
     char command_buffer[1024];
@@ -181,29 +181,30 @@ int simple_for_loop(const char *command,const char *directory) {
     dir = opendir(directory);
     if (dir == NULL) {
         perror("Error opening directory");
-        return -1; // Return an error status
+        return -1;
+    }
+
+    if (strcmp(args[0], "for") != 0 || strcmp(args[2], "in") != 0 || strcmp(args[4], "{") != 0) {
+        fprintf(stderr, "Syntax error: Command must follow 'for F in REP { CMD }'\n");
+        closedir(dir);
+        return -1;
     }
 
     while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_name[0] == '.') {
-            continue; // Skip hidden files
+        if (entry->d_name[0] == '.') continue; 
+            
+        strcpy(command_buffer, "");
+        for (int i = 5; args[i] && strcmp(args[i], "}") != 0; ++i) {
+            strcat(command_buffer, args[i]);
+            strcat(command_buffer, " "); 
         }
 
-        // Build the full command to execute for each file
-        int command_length = snprintf(command_buffer, sizeof(command_buffer), "%s %s/%s", command, directory, entry->d_name);
-        if (command_length >= sizeof(command_buffer)) {
-            fprintf(stderr, "Command buffer overflow\n");
-            return -1; // Set error status due to buffer overflow
-            break; // Exit the loop to avoid executing an incomplete command
-        }
+        char final_command[1024];
+        snprintf(final_command, sizeof(final_command), command_buffer, entry->d_name); 
 
-        // Execute the command
-        if (system(command_buffer) == -1) {
-            perror("Error executing command");
-            return -1; // Set error status due to command execution failure
-        }
+        process_command(final_command);
     }
 
     closedir(dir);
-    return 0; // Return the final status of the operation
+    return 0;
 }
