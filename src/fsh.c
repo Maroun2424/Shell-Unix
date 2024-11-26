@@ -102,12 +102,7 @@ void process_command(char *input) {
             exit(exit_val);
         }
     } else if (strcmp(args[0], "for") == 0) {
-        if (arg_count != 3) {  // Assuming command takes exactly two arguments
-            fprintf(stderr, "Usage: for <directory> <command>\n");
-            last_exit_status = 1;
-        } else {
-            last_exit_status = simple_for_loop(args[1], args[2]);
-        }
+            last_exit_status = simple_for_loop(args);
     } else if (strcmp(args[0], "ftype") == 0) {
         if (arg_count != 2) {
             fprintf(stderr, "Erreur : La commande 'ftype' nécessite exactement un argument.\n");
