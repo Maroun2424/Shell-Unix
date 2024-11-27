@@ -48,7 +48,9 @@ char* update_prompt(int last_exit_status, const char *current_dir) {
     if (last_exit_status == 0) {
         strcat(prompt, "0");          // Statut de succès
     } else {
-        strcat(prompt, "1");          // Statut d'erreur
+        char val[3];
+        snprintf(val, 3, "%d", last_exit_status);
+        strcat(prompt, val);          // Statut d'erreur
     }
     strcat(prompt, "]");
     strcat(prompt, COLOR_BLUE);       // Couleur pour le répertoire
@@ -115,20 +117,30 @@ void process_command(char *input) {
         pid_t pid = fork();
 
         if (pid == 0) { // Child process
-            execvp(args[0], args); // Try to execute the command
+            if(strlen(args[0]) > 2 && args[0][0] == '.' && args[0][1] == '/') execv(args[0], args);
+            else execvp(args[0], args); // Try to execute the command
             perror("execvp");
             exit(EXIT_FAILURE); // Exit if failure
+
         } else if (pid > 0) { // Parent process
+
             int status;
             waitpid(pid, &status, 0); // Wait for the child to finish
+
             if (WIFEXITED(status)) {
+
                 last_exit_status = WEXITSTATUS(status); // Retrieve the return code
+
             } else {
-                last_exit_status = 1;
+
+                last_exit_status = 1; // gérer les signaux
+
             }
         } else { // Fork failed
+
             perror("fork");
             last_exit_status = 1;
+
         }
     }
 }
