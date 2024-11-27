@@ -12,6 +12,14 @@
 #include <readline/history.h>
 #include <ctype.h>
 #include <linux/limits.h> 
+#include <linux/limits.h> 
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <linux/limits.h>
+#include <linux/limits.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -21,26 +29,21 @@
 
 #define MAX_PATH_LENGTH 1024
 
-// Assure que O_DIRECTORY est défini pour open
 #ifndef O_DIRECTORY
 #define O_DIRECTORY 0200000
 #endif
 
 /**
- * @brief Change le répertoire de travail.
+ * @brief Changes the current working directory.
  *
- * Modifie le répertoire de travail courant du processus vers celui spécifié par le chemin. 
- * Si le chemin est invalide ou si une erreur survient, un message d'erreur est affiché. 
- * Si "cd" est utilisé seul, le répertoire change pour HOME. Si "cd" est lancé avec "-", 
- * il retourne au dernier répertoire visité.
+ * Switches the current working directory to the specified path. If the path is invalid,
+ * or an error occurs, it displays an error message. If no path is provided, it defaults
+ * to the HOME directory. If the path is "-", it switches to the last visited directory.
  *
- * @param path Pointeur vers la chaîne de caractères contenant le chemin
- *             du répertoire à changer.
+ * @param path Pointer to the string containing the target directory path.
+ * @return 0 on success, 1 on failure.
  */
-
-
 int cmd_cd(const char *path) {
-
     static char previous_path[MAX_PATH_LENGTH];
     char current_path[MAX_PATH_LENGTH];
 
@@ -49,13 +52,14 @@ int cmd_cd(const char *path) {
         return 1;
     }
 
+    // Handle empty path or "cd" with no arguments
     if (path == NULL || strcmp(path, "") == 0) {
         path = getenv("HOME");
         if (path == NULL) {
             fprintf(stderr, "cd: HOME not set\n");
             return 1;
         }
-    } else if (strcmp(path, "-") == 0) {
+    } else if (strcmp(path, "-") == 0) { // Handle "cd -"
         if (strlen(previous_path) == 0) {
             fprintf(stderr, "cd: OLDPWD not set\n");
             return 1;
@@ -63,34 +67,31 @@ int cmd_cd(const char *path) {
         path = previous_path;
     }
 
+    // Attempt to change the directory
     if (chdir(path) != 0) {
         perror("cd");
         return 1;
     }
 
+    // Update the previous path
     strncpy(previous_path, current_path, sizeof(previous_path) - 1);
     previous_path[sizeof(previous_path) - 1] = '\0';
 
     return 0;
 }
 
-
-
-
-
 /**
- * @brief Obtient et affiche le chemin du répertoire courant.
+ * @brief Prints the current working directory.
  *
- * Utilise getcwd pour récupérer le chemin du répertoire courant
- * et l'affiche sur la sortie standard.
+ * Retrieves the current working directory and prints it to the standard output.
  *
- * @return 0 en cas de succès, 1 en cas d'erreur.
+ * @return 0 on success, 1 on failure.
  */
 int cmd_pwd() {
     char path[MAX_PATH_LENGTH];
 
     if (getcwd(path, sizeof(path)) == NULL) {
-        perror("Erreur lors de la récupération du chemin actuel");
+        perror("pwd: Error retrieving the current directory");
         return 1;
     }
 
@@ -100,73 +101,75 @@ int cmd_pwd() {
 }
 
 /**
- * @brief Supprime les espaces en début et en fin d'une chaîne.
+ * @brief Trims whitespace from the start and end of a string.
  *
- * Modifie la chaîne d'entrée pour enlever les espaces vides avant le premier 
- * et après le dernier caractère non blanc. 
+ * Modifies the input string to remove leading and trailing whitespace.
  *
- * @param str Pointeur vers la chaîne à traiter (modifiée en place).
+ * @param str Pointer to the string to process (modified in place).
  */
 void trim_whitespace(char *str) {
     char *end;
 
-    while (isspace((unsigned char)*str)) str++;  // Trim leading spaces
+    // Trim leading spaces
+    while (isspace((unsigned char)*str)) str++;
 
-    if (*str == 0)  // Check if the string is empty
-        return;
+    if (*str == 0) return;  // Empty string
 
-    end = str + strlen(str) - 1;  // Set end pointer to the last character
-    while (end > str && isspace((unsigned char)*end)) end--;  // Trim trailing spaces
+    // Trim trailing spaces
+    end = str + strlen(str) - 1;
+    while (end > str && isspace((unsigned char)*end)) end--;
 
-    *(end + 1) = 0;  // Null terminate after last non-space character
+    *(end + 1) = '\0';  // Null terminate
 }
 
 /**
- * @brief Vérifie et affiche le type d'un fichier ou répertoire.
+ * @brief Checks and displays the type of a file or directory.
  *
- * Cette fonction utilise lstat pour récupérer les informations
- * de statut d'un fichier ou répertoire spécifié par le chemin. 
- * Elle affiche le type correspondant.
+ * Uses lstat to retrieve information about a file or directory and prints its type.
  *
- * @param path Pointeur vers la chaîne de caractères contenant le chemin à vérifier.
+ * @param path Pointer to the string containing the file or directory path.
+ * @return 0 on success, 1 on failure.
  */
 int cmd_ftype(const char *path) {
     struct stat file_stat;
     char trimmed_path[MAX_PATH_LENGTH];
 
-    // Copie du chemin et suppression des espaces
+    // Copy the path and trim whitespace
     strncpy(trimmed_path, path, sizeof(trimmed_path));
     trim_whitespace(trimmed_path);
 
-    // Tente d'obtenir les informations de statut pour le fichier ou répertoire
+    // Retrieve the file or directory status
     if (lstat(trimmed_path, &file_stat) == -1) {
         perror("ftype");
         return 1;
     }
 
-    // Vérifie et affiche le type de fichier
+    // Determine and print the file type
     if (S_ISDIR(file_stat.st_mode)) {
-        write(STDOUT_FILENO, "directory", 9);
-        write(STDOUT_FILENO, "\n", 1);
+        write(STDOUT_FILENO, "directory\n", 10);
     } else if (S_ISREG(file_stat.st_mode)) {
-        write(STDOUT_FILENO, "regular file", 12);
-        write(STDOUT_FILENO, "\n", 1);
+        write(STDOUT_FILENO, "regular file\n", 13);
     } else if (S_ISLNK(file_stat.st_mode)) {
-        write(STDOUT_FILENO, "symbolic link", 13);
-        write(STDOUT_FILENO, "\n", 1);
+        write(STDOUT_FILENO, "symbolic link\n", 14);
     } else if (S_ISFIFO(file_stat.st_mode)) {
-        write(STDOUT_FILENO, "named pipe", 10);
-        write(STDOUT_FILENO, "\n", 1);
+        write(STDOUT_FILENO, "named pipe\n", 11);
     } else if (S_ISSOCK(file_stat.st_mode)) {
-        write(STDOUT_FILENO, "socket", 6);
-        write(STDOUT_FILENO, "\n", 1);
+        write(STDOUT_FILENO, "socket\n", 7);
     } else {
-        write(STDOUT_FILENO, "other", 5);
-        write(STDOUT_FILENO, "\n", 1);
+        write(STDOUT_FILENO, "other\n", 6);
     }
     return 0;
 }
 
+/**
+ * @brief Executes a simple "for" loop to process files in a directory.
+ *
+ * Iterates through all non-hidden files in the specified directory and executes
+ * a given command for each file.
+ *
+ * @param args Array of strings representing the command arguments.
+ * @return 0 on success, -1 on failure.
+ */
 int simple_for_loop(char *args[]) {
     //Vérifie la validité des arguments
     if (!args || !args[1] || !args[2] || !args[3] || !args[5] || !args[6]) {
