@@ -168,6 +168,7 @@ int cmd_ftype(const char *path) {
 }
 
 int simple_for_loop(char *args[]) {
+    //Vérifie la validité des arguments
     if (!args || !args[1] || !args[2] || !args[3] || !args[5] || !args[6]) {
         fprintf(stderr, "Invalid arguments\n");
         return -1;
@@ -178,30 +179,52 @@ int simple_for_loop(char *args[]) {
     struct dirent *entry;
     char command_buffer[1024];
 
+    //Ouvre le répertoire
     dir = opendir(directory);
     if (dir == NULL) {
         perror("Error opening directory");
         return -1;
     }
 
+    //Vérifie la syntaxe de la commande "for F in REP { CMD }"
     if (strcmp(args[0], "for") != 0 || strcmp(args[2], "in") != 0 || strcmp(args[4], "{") != 0) {
         fprintf(stderr, "Syntax error: Command must follow 'for F in REP { CMD }'\n");
         closedir(dir);
         return -1;
     }
 
+    //Construit la variable (ex: "$F")
+    char varname[strlen(args[1]) + 2];
+    varname[0] = '\0';
+    strcat(varname, "$");
+    strcat(varname, args[1]);
+
+    //parcourt les fichiers du répertoire
     while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_name[0] == '.') continue; 
-            
+        //Ignore les fichiers spéciaux "." et ".."
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue; 
+
+        //Prépare la commande à exécuter
         strcpy(command_buffer, "");
         for (int i = 5; args[i] && strcmp(args[i], "}") != 0; ++i) {
-            strcat(command_buffer, args[i]);
-            strcat(command_buffer, " "); 
+            if (strcmp(args[i], varname) == 0) {  
+                //Remplace $F par le chemin complet vers le fichier
+                char temp[1024];
+                temp[0] = '\0';
+                strcat(temp, args[3]);  //ajoute le chemin du répertoire
+                strcat(temp, "/");
+                strcat(temp, entry->d_name);  //ajoute le nom du fichier
+                strcat(command_buffer, temp);
+            } else {
+                //Ajoute les autres parties de la commande
+                strcat(command_buffer, args[i]);
+            }
+            strcat(command_buffer, " "); // separation des arguments
         }
 
+        //exécute la commande générée
         char final_command[1024];
-        snprintf(final_command, sizeof(final_command), command_buffer, entry->d_name); 
-
+        snprintf(final_command, sizeof(final_command), command_buffer, entry->d_name);
         process_command(final_command);
     }
 
