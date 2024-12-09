@@ -175,35 +175,36 @@ int simple_for_loop(char *args[]) {
     }
 
     // Construit la variable $F
-    char varname[strlen(args[1]) + 2];
-    sprintf(varname, "$%s", args[1]); // Construit "$F"
+    char varname[256];
+    snprintf(varname, sizeof(varname), "$%s", args[1]);
 
     while ((entry = readdir(dir)) != NULL) {
-        // Ignore les fichiers cachés
         if (entry->d_name[0] == '.') {
-            continue;
+            continue; // Ignore les fichiers cachés
         }
 
-        strcpy(command_buffer, "");
+        strcpy(command_buffer, ""); // Réinitialise le buffer pour chaque fichier
 
         for (int i = 5; args[i] && strcmp(args[i], "}") != 0; ++i) {
-            if (strstr(args[i], varname) != NULL) { // Remplacement de $F ou $F.extension
-                char temp[1024];
-                temp[0] = '\0';
+            if (strstr(args[i], varname) != NULL) { // Si $F est trouvé
+                char temp[1024] = "";
+                strncat(temp, args[i], strstr(args[i], varname) - args[i]); // Avant $F
 
+                // Ajoute le chemin complet vers le fichier
                 strcat(temp, directory);
                 strcat(temp, "/");
                 strcat(temp, entry->d_name);
 
-                if (strstr(args[i], ".extension") != NULL) { // Gestion de $F.extension
+                // Si ".extension" est requis et absent, l'ajouter
+                if (strstr(args[i], ".extension") != NULL && !strstr(entry->d_name, ".extension")) {
                     strcat(temp, ".extension");
                 }
 
                 strcat(command_buffer, temp);
             } else {
-                strcat(command_buffer, args[i]);
+                strcat(command_buffer, args[i]); // Ajoute les parties sans $F
             }
-            strcat(command_buffer, " "); // Ajoute un espace entre les arguments
+            strcat(command_buffer, " "); // Espace entre les arguments
         }
 
         // Exécute la commande générée
@@ -213,4 +214,3 @@ int simple_for_loop(char *args[]) {
     closedir(dir);
     return 0;
 }
-
