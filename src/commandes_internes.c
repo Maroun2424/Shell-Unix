@@ -174,27 +174,43 @@ int simple_for_loop(char *args[]) {
         return -1;
     }
 
+    // Construit la variable $F
     char varname[strlen(args[1]) + 2];
-    sprintf(varname, "$%s", args[1]); // Construit la variable $F
+    sprintf(varname, "$%s", args[1]); // Construit "$F"
 
     while ((entry = readdir(dir)) != NULL) {
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+        // Ignore les fichiers cachés
+        if (entry->d_name[0] == '.') {
+            continue;
+        }
 
         strcpy(command_buffer, "");
+
         for (int i = 5; args[i] && strcmp(args[i], "}") != 0; ++i) {
-            if (strcmp(args[i], varname) == 0) {
-                strcat(command_buffer, directory);
-                strcat(command_buffer, "/");
-                strcat(command_buffer, entry->d_name);
+            if (strstr(args[i], varname) != NULL) { // Remplacement de $F ou $F.extension
+                char temp[1024];
+                temp[0] = '\0';
+
+                strcat(temp, directory);
+                strcat(temp, "/");
+                strcat(temp, entry->d_name);
+
+                if (strstr(args[i], ".extension") != NULL) { // Gestion de $F.extension
+                    strcat(temp, ".extension");
+                }
+
+                strcat(command_buffer, temp);
             } else {
                 strcat(command_buffer, args[i]);
             }
-            strcat(command_buffer, " ");
+            strcat(command_buffer, " "); // Ajoute un espace entre les arguments
         }
 
+        // Exécute la commande générée
         process_command(command_buffer);
     }
 
     closedir(dir);
     return 0;
 }
+
