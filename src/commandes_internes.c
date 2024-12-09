@@ -151,7 +151,7 @@ int cmd_ftype(const char *path) {
  * @return 0 en cas de succès, -1 en cas d'erreur.
  */
 int simple_for_loop(char *args[]) {
-    if (!args || !args[1] || !args[2] || !args[3] || !args[5] || !args[6]) {
+    if (!args || !args[1] || !args[2] || !args[3] || !args[5]) {
         fprintf(stderr, "Invalid arguments\n");
         return -1;
     }
@@ -159,7 +159,6 @@ int simple_for_loop(char *args[]) {
     const char *directory = args[3];
     DIR *dir;
     struct dirent *entry;
-    char command_buffer[1024];
 
     dir = opendir(directory);
     if (dir == NULL) {
@@ -174,7 +173,7 @@ int simple_for_loop(char *args[]) {
         return -1;
     }
 
-    // Construit la variable $F
+    // Prépare la variable $F
     char varname[256];
     snprintf(varname, sizeof(varname), "$%s", args[1]);
 
@@ -183,31 +182,35 @@ int simple_for_loop(char *args[]) {
             continue; // Ignore les fichiers cachés
         }
 
-        strcpy(command_buffer, ""); // Réinitialise le buffer pour chaque fichier
+        char command_buffer[1024] = ""; // Buffer pour stocker la commande finale
 
+        // Parcourt les arguments pour construire la commande
         for (int i = 5; args[i] && strcmp(args[i], "}") != 0; ++i) {
-            if (strstr(args[i], varname) != NULL) { // Si $F est trouvé
-                char temp[1024] = "";
-                strncat(temp, args[i], strstr(args[i], varname) - args[i]); // Avant $F
+            const char *arg = args[i];
+            char temp[1024] = ""; // Buffer temporaire pour traiter l'argument
+            int temp_index = 0;  // Index pour temp
 
-                // Ajoute le chemin complet vers le fichier
-                strcat(temp, directory);
-                strcat(temp, "/");
-                strcat(temp, entry->d_name);
-
-                // Si ".extension" est requis et absent, l'ajouter
-                if (strstr(args[i], ".extension") != NULL && !strstr(entry->d_name, ".extension")) {
-                    strcat(temp, ".extension");
+            while (*arg) {
+                if (*arg == '$' && strncmp(arg, varname, strlen(varname)) == 0) {
+                    // Si on trouve $F, remplacer par le chemin complet
+                    snprintf(temp + temp_index, sizeof(temp) - temp_index, "%s/%s",
+                             directory, entry->d_name);
+                    temp_index += strlen(temp + temp_index); // Avance dans le buffer
+                    arg += strlen(varname); // Passe après $F
+                } else {
+                    // Copie le caractère courant
+                    temp[temp_index++] = *arg;
+                    temp[temp_index] = '\0';
+                    arg++;
                 }
-
-                strcat(command_buffer, temp);
-            } else {
-                strcat(command_buffer, args[i]); // Ajoute les parties sans $F
             }
-            strcat(command_buffer, " "); // Espace entre les arguments
+
+            strcat(command_buffer, temp); // Ajoute l'argument au buffer final
+            strcat(command_buffer, " "); // Ajoute un espace
         }
 
         // Exécute la commande générée
+        command_buffer[strlen(command_buffer) - 1] = '\0'; // Supprime l'espace final
         process_command(command_buffer);
     }
 
