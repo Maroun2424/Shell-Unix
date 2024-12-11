@@ -1,11 +1,9 @@
-#ifndef COMMANDS_H
-#define COMMANDS_H
+#ifndef COMMANDES_INTERNES_H
+#define COMMANDES_INTERNES_H
 
 int cmd_cd(const char *path);
-int cmd_pwd();  
-//void cmd_exit(int exit_code);
+void cmd_exit(const char *exit_code_str);
+int cmd_pwd();
 int cmd_ftype(const char *path);
 
-int simple_for_loop(char *args[]);
-
-#endif
+#endif // COMMANDES_INTERNES_H
