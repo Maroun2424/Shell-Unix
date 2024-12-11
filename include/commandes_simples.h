@@ -18,7 +18,6 @@
  * @param append_mode Spécification de si la redirection de sortie doit être en mode ajout.
  * @return Code de retour de la commande exécutée.
  */
-int execute_simple_command(char *args[], const char *input_redirection, 
-                           const char *output_redirection, int append_mode);
+int execute_simple_command(char *args[], const char *input_redirection, const char *output_redirection, int append_mode);
 
 #endif

@@ -26,12 +26,33 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <linux/limits.h>
+#include "../include/commandes_simples.h"
+#include "../include/fsh.h" // Pour `last_exit_status`
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/wait.h>
+#include <string.h>
+
 
 #define MAX_PATH_LENGTH 1024
 
 #ifndef O_DIRECTORY
 #define O_DIRECTORY 0200000
 #endif
+
+
+/**
+ * @brief Quitte le shell.
+ *
+ * @param exit_code_str Code de retour ou NULL pour utiliser last_exit_status.
+ */
+void cmd_exit(const char *exit_code_str) {
+    int exit_code = (exit_code_str) ? atoi(exit_code_str) : last_exit_status;
+    exit_code &= 0xFF; // Contraint la valeur à l'octet inférieur (0-255)
+    exit(exit_code);
+}
 
 /**
  * @brief Change le répertoire courant.
