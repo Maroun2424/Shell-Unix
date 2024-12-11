@@ -9,6 +9,7 @@
 #include <readline/history.h>
 #include <stdbool.h>
 #include <signal.h>
+#include "../include/commandes_simples.h"
 
 #define COLOR_GREEN "\001\033[32m\002"
 #define COLOR_RED "\001\033[91m\002"
@@ -103,7 +104,75 @@ void process_command(char *input) {
     int arg_count = 0;
     bool first_token = true;
 
-    // Sépare la commande en arguments
+    // Vérifie s'il y a un pipe dans la commande
+    char *pipe_segments[100];
+    int pipe_count = 0;
+    char *segment = strtok(input, "|");
+
+    while (segment != NULL && pipe_count < 100) {
+        pipe_segments[pipe_count++] = segment;
+        segment = strtok(NULL, "|");
+    }
+
+    if (pipe_count > 1) { // Gérer les pipes
+        int pipe_fds[2];
+        int prev_fd = -1;
+
+        for (int i = 0; i < pipe_count; i++) {
+            if (pipe(pipe_fds) == -1) {
+                perror("pipe");
+                last_exit_status = 1;
+                return;
+            }
+
+            pid_t pid = fork();
+
+            if (pid == 0) { // Processus enfant
+                if (prev_fd != -1) {
+                    dup2(prev_fd, STDIN_FILENO);
+                    close(prev_fd);
+                }
+                if (i < pipe_count - 1) {
+                    close(pipe_fds[0]);
+                    dup2(pipe_fds[1], STDOUT_FILENO);
+                    close(pipe_fds[1]);
+                }
+
+                // Sépare les arguments pour cette commande
+                char *cmd_args[100];
+                int cmd_arg_count = 0;
+                char *cmd_token = strtok(pipe_segments[i], " ");
+                while (cmd_token != NULL && cmd_arg_count < 100) {
+                    cmd_args[cmd_arg_count++] = cmd_token;
+                    cmd_token = strtok(NULL, " ");
+                }
+                cmd_args[cmd_arg_count] = NULL;
+
+                if (cmd_args[0] == NULL) exit(EXIT_FAILURE);
+
+                execvp(cmd_args[0], cmd_args);
+                perror("execvp");
+                exit(EXIT_FAILURE);
+            } else if (pid > 0) { // Processus parent
+                waitpid(pid, &last_exit_status, 0);
+
+                if (prev_fd != -1) close(prev_fd);
+                if (i < pipe_count - 1) {
+                    close(pipe_fds[1]);
+                    prev_fd = pipe_fds[0];
+                }
+            } else {
+                perror("fork");
+                last_exit_status = 1;
+                return;
+            }
+        }
+
+        if (prev_fd != -1) close(prev_fd);
+        return;
+    }
+
+    // Sépare la commande en arguments (sans pipe)
     char *command;
     while ((command = strtok(first_token ? input : NULL, " ")) != NULL && arg_count < 100) {
         args[arg_count++] = command;
