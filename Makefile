@@ -1,6 +1,6 @@
 # Définition des variables
 CC = gcc
-CFLAGS = -I./include -Wall -Wextra
+CFLAGS = -I./include -Wall -Wextra -g
 SRCDIR = src
 BINDIR = .bin
 TARGET = fsh
@@ -10,6 +10,8 @@ SRC = $(wildcard $(SRCDIR)/*.c)
 OBJ = $(patsubst $(SRCDIR)/%.c, $(BINDIR)/%.o, $(SRC))
 
 # Règle par défaut pour construire l'exécutable
+all: $(TARGET)
+
 $(TARGET): $(OBJ)
 	$(CC) $(OBJ) -o $(TARGET) -lreadline
 
@@ -29,7 +31,7 @@ clean:
 distclean: clean
 	rm -rf $(BINDIR)
 
-# Afficher les fichiers objets pour vérifier la correspondance
+# Vérification et affichage des fichiers sources et objets
 print:
 	@echo "Fichiers sources: $(SRC)"
 	@echo "Fichiers objets: $(OBJ)"
