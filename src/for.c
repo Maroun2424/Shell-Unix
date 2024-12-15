@@ -1,110 +1,148 @@
-#include "../include/commandes_internes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <dirent.h>
-#include <sys/wait.h>
-#include <readline/readline.h>
-#include <readline/history.h>
-#include <ctype.h>
-#include <linux/limits.h> 
-#include <linux/limits.h> 
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdlib.h>
 #include <sys/stat.h>
-#include <linux/limits.h>
-#include <linux/limits.h>
-#include <stdio.h>
 #include <unistd.h>
-#include <string.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include <linux/limits.h>
+#include "../include/fsh.h"
+#include "../include/commandes_internes.h"
 #include "../include/commandes_simples.h"
-#include "../include/fsh.h" // Pour `last_exit_status`
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <sys/wait.h>
-#include <string.h>
+#include "../include/command_executor.h"
 
-/**
- * @brief Parcourt les fichiers d'un répertoire et exécute une commande sur chaque fichier.
- *
- * @param args Tableau de chaînes représentant les arguments.
- * @return 0 en cas de succès, -1 en cas d'erreur.
- */
-int simple_for_loop(char *args[]) {
-    if (!args || !args[1] || !args[2] || !args[3] || !args[5]) {
-        fprintf(stderr, "Invalid arguments\n");
+// Structure pour les informations de boucle
+typedef struct {
+    char *var_name;
+    char *directory;
+    char **command_parts;
+    int command_parts_count;
+    int show_hidden;
+    int recursive;
+    char *extension_filter;
+    char *type_filter;
+} for_loop_t;
+
+// Analyse et prépare les données de la commande `for`
+int parse_for_command(char *args[], for_loop_t *loop) {
+    memset(loop, 0, sizeof(for_loop_t));
+
+    if (!args[0] || strcmp(args[0], "for") != 0 || !args[1] || !args[2] || strcmp(args[2], "in") != 0 || !args[3]) {
+        fprintf(stderr, "Syntax error: Invalid 'for' command\n");
         return -1;
     }
 
-    const char *directory = args[3];
-    DIR *dir;
-    struct dirent *entry;
+    loop->var_name = args[1];
+    loop->directory = args[3];
 
-    dir = opendir(directory);
-    if (dir == NULL) {
+    int i = 4;
+    while (args[i]) {
+        // Gère les options jusqu'à trouver '{'
+        if (strcmp(args[i], "-A") == 0) {
+            loop->show_hidden = 1;
+        } else if (strcmp(args[i], "-r") == 0) {
+            loop->recursive = 1;
+        } else if (strcmp(args[i], "-e") == 0) {
+            if (!args[i + 1]) {
+                fprintf(stderr, "Error: Missing value for -e\n");
+                return -1;
+            }
+            loop->extension_filter = args[++i];
+        } else if (strcmp(args[i], "-t") == 0) {
+            if (!args[i + 1]) {
+                fprintf(stderr, "Error: Missing value for -t\n");
+                return -1;
+            }
+            loop->type_filter = args[++i];
+        } else if (strcmp(args[i], "{") == 0) {
+            // Commence à lire la commande après '{'
+            i++;
+            loop->command_parts = &args[i];
+
+            // Compte le nombre d'arguments jusqu'à '}'
+            while (args[i] && strcmp(args[i], "}") != 0) {
+                loop->command_parts_count++;
+                i++;
+            }
+
+            // Vérifie qu'on a trouvé '}'
+            if (!args[i] || strcmp(args[i], "}") != 0) {
+                fprintf(stderr, "Syntax error: Missing '}'\n");
+                return -1;
+            }
+            break;
+        } else {
+            fprintf(stderr, "Syntax error: Unexpected argument '%s'\n", args[i]);
+            return -1;
+        }
+        i++;
+    }
+
+    if (!loop->command_parts || loop->command_parts_count == 0) {
+        fprintf(stderr, "Syntax error: Missing command to execute\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+
+// Exécute la commande construite
+void execute_for_command(const char *cmd_buffer) {
+    if (cmd_buffer && strlen(cmd_buffer) > 0) {
+        process_command((char *)cmd_buffer);
+    }
+}
+
+int handle_for_iteration(for_loop_t *loop) {
+    DIR *dir = opendir(loop->directory);
+    if (!dir) {
         perror("Error opening directory");
         return -1;
     }
 
-    // Vérifie la syntaxe "for F in REP { CMD }"
-    if (strcmp(args[0], "for") != 0 || strcmp(args[2], "in") != 0 || strcmp(args[4], "{") != 0) {
-        fprintf(stderr, "Syntax error: Command must follow 'for F in REP { CMD }'\n");
-        closedir(dir);
-        return -1;
-    }
-
-    // Prépare la variable $F
-    char varname[256];
-    snprintf(varname, sizeof(varname), "$%s", args[1]);
-
+    struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_name[0] == '.') {
-            continue; // Ignore les fichiers cachés
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue; // Ignore . et ..
+        if (entry->d_name[0] == '.' && !loop->show_hidden) continue;
+
+        // Filtrage par extension
+        if (loop->extension_filter) {
+            char *dot = strrchr(entry->d_name, '.');
+            if (!dot || strcmp(dot + 1, loop->extension_filter) != 0) continue;
         }
 
-        char command_buffer[1024] = ""; // Buffer pour stocker la commande finale
+        // Construction du chemin complet
+        char file_path[PATH_MAX];
+        snprintf(file_path, sizeof(file_path), "%s/%s", loop->directory, entry->d_name);
 
-        // Parcourt les arguments pour construire la commande
-        for (int i = 5; args[i] && strcmp(args[i], "}") != 0; ++i) {
-            const char *arg = args[i];
-            char temp[1024] = ""; // Buffer temporaire pour traiter l'argument
-            int temp_index = 0;  // Index pour temp
-
-            while (*arg) {
-                if (*arg == '$' && strncmp(arg, varname, strlen(varname)) == 0) {
-                    // Si on trouve $F, remplacer par le chemin complet
-                    snprintf(temp + temp_index, sizeof(temp) - temp_index, "%s/%s",
-                             directory, entry->d_name);
-                    temp_index += strlen(temp + temp_index); // Avance dans le buffer
-                    arg += strlen(varname); // Passe après $F
-                } else {
-                    // Copie le caractère courant
-                    temp[temp_index++] = *arg;
-                    temp[temp_index] = '\0';
-                    arg++;
-                }
+        // Construction de la commande avec substitutions
+        char cmd_buffer[2048] = "";
+        for (int i = 0; i < loop->command_parts_count; i++) {
+            const char *arg = loop->command_parts[i];
+            if (strcmp(arg, "$F") == 0) {
+                strncat(cmd_buffer, file_path, sizeof(cmd_buffer) - strlen(cmd_buffer) - 1);
+            } else if (strcmp(arg, "$D") == 0) {
+                strncat(cmd_buffer, loop->directory, sizeof(cmd_buffer) - strlen(cmd_buffer) - 1);
+            } else {
+                strncat(cmd_buffer, arg, sizeof(cmd_buffer) - strlen(cmd_buffer) - 1);
             }
-
-            strcat(command_buffer, temp); // Ajoute l'argument au buffer final
-            strcat(command_buffer, " "); // Ajoute un espace
+            strncat(cmd_buffer, " ", sizeof(cmd_buffer) - strlen(cmd_buffer) - 1);
         }
 
-        // Exécute la commande générée
-        command_buffer[strlen(command_buffer) - 1] = '\0'; // Supprime l'espace final
-        process_command(command_buffer);
+        cmd_buffer[strlen(cmd_buffer) - 1] = '\0'; // Retirer l'espace final
+        execute_for_command(cmd_buffer);
     }
 
     closedir(dir);
     return 0;
+}
+
+
+int simple_for_loop(char *args[]) {
+    for_loop_t loop;
+    if (parse_for_command(args, &loop) == -1) {
+        return -1;
+    }
+
+    return handle_for_iteration(&loop);
 }
