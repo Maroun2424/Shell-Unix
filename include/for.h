@@ -7,6 +7,6 @@
  * @param args Tableau de chaînes représentant les arguments.
  * @return 0 en cas de succès, -1 en cas d'erreur.
  */
-int simple_for_loop(char *args[]);
+int handle_for_iteration(for_loop_t *loop);
 
 #endif // FOR_H
