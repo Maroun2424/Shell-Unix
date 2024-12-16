@@ -27,7 +27,7 @@
 #include <sys/stat.h>
 #include <linux/limits.h>
 #include "../include/commandes_simples.h"
-#include "../include/fsh.h" // Pour `last_exit_status`
+#include "../include/command_executor.h" // Pour `last_exit_status`
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdlib.h>
