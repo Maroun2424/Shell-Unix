@@ -3,6 +3,7 @@
 #include "../include/commandes_internes.h"
 #include "../include/commandes_simples.h"
 #include "../include/for.h"
+#include "../include/commandes_structurees.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,6 +14,7 @@
 #include <stdbool.h>
 
 int last_exit_status = 0;
+
 void process_command(const char *input) {
     if (!input || strlen(input) == 0) return; // Aucune commande à traiter
 
@@ -24,16 +26,20 @@ void process_command(const char *input) {
         char *args[100];
         int arg_count = 0;
 
-        // Découpage de la commande en arguments
+        // Découpage strict par espaces
         char *token = strtok(input_copy, " ");
         while (token != NULL && arg_count < 100) {
-            args[arg_count++] = token;
+            // Pas de trim_whitespace
+            if (strlen(token) > 0) {
+                args[arg_count++] = token;
+            }
             token = strtok(NULL, " ");
         }
         args[arg_count] = NULL;
 
         if (args[0] == NULL) {
             free(input_copy);
+            free(commands[i]);
             continue; // Commande vide
         }
 
@@ -69,14 +75,15 @@ void process_command(const char *input) {
             } else {
                 last_exit_status = cmd_ftype(args[1]);
             }
+        } else if (strcmp(args[0], "if") == 0) {
+            last_exit_status = cmd_if(args);
         } else {
             // Commande externe
             pid_t pid = fork();
             if (pid == 0) { // Processus enfant
-                if (execvp(args[0], args) == -1) {
-                    perror("execvp");
-                    exit(EXIT_FAILURE);
-                }
+                execvp(args[0], args);
+                perror("execvp");
+                exit(EXIT_FAILURE);
             } else if (pid > 0) { // Processus parent
                 int status;
                 if (waitpid(pid, &status, 0) != -1) {
@@ -96,7 +103,8 @@ void process_command(const char *input) {
             }
         }
 
-        free(input_copy); // Libère la mémoire pour cette commande
+        // args[] pointe vers input_copy, pas de free(args[j]) ici
+        free(input_copy);
         free(commands[i]);
     }
 }
