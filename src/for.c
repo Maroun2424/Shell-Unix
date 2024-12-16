@@ -35,65 +35,53 @@ int parse_for_command(char *args[], for_loop_t *loop) {
     loop->directory = args[3];
 
     int i = 4;
+    char command_buffer[1024] = "";
+    int brace_count = 0;
+
     while (args[i]) {
-        // Gère les options jusqu'à trouver '{'
-        if (strcmp(args[i], "-A") == 0) {
-            loop->show_hidden = 1;
-        } else if (strcmp(args[i], "-r") == 0) {
-            loop->recursive = 1;
-        } else if (strcmp(args[i], "-e") == 0) {
-            if (!args[i + 1]) {
-                fprintf(stderr, "Error: Missing value for -e\n");
-                return -1;
-            }
-            loop->extension_filter = args[++i];
-        } else if (strcmp(args[i], "-t") == 0) {
-            if (!args[i + 1]) {
-                fprintf(stderr, "Error: Missing value for -t\n");
-                return -1;
-            }
-            loop->type_filter = args[++i];
-        } else if (strcmp(args[i], "{") == 0) {
-            // Commence à lire la commande après '{'
-            i++;
-            loop->command_parts = &args[i];
-
-            // Compte le nombre d'arguments jusqu'à '}'
-            while (args[i] && strcmp(args[i], "}") != 0) {
-                loop->command_parts_count++;
-                i++;
-            }
-
-            // Vérifie qu'on a trouvé '}'
-            if (!args[i] || strcmp(args[i], "}") != 0) {
-                fprintf(stderr, "Syntax error: Missing '}'\n");
-                return -1;
-            }
-            break;
-        } else {
-            fprintf(stderr, "Syntax error: Unexpected argument '%s'\n", args[i]);
-            return -1;
+        if (strcmp(args[i], "{") == 0) {
+            brace_count++;
+        } else if (strcmp(args[i], "}") == 0) {
+            brace_count--;
+            if (brace_count == 0) break; // Fin du bloc
+        } else if (brace_count > 0) {
+            // Collecte tout ce qu'il y a dans le bloc
+            strncat(command_buffer, args[i], sizeof(command_buffer) - strlen(command_buffer) - 1);
+            strncat(command_buffer, " ", sizeof(command_buffer) - strlen(command_buffer) - 1);
         }
         i++;
     }
 
-    if (!loop->command_parts || loop->command_parts_count == 0) {
-        fprintf(stderr, "Syntax error: Missing command to execute\n");
+    if (brace_count != 0) {
+        fprintf(stderr, "Syntax error: Unmatched '{'\n");
         return -1;
     }
+
+    // Enregistre la commande collectée
+    loop->command_parts = malloc(sizeof(char *));
+    loop->command_parts[0] = strdup(command_buffer);
+    loop->command_parts_count = 1;
 
     return 0;
 }
 
 
-// Exécute la commande construite
-void execute_for_command(const char *cmd_buffer) {
-    if (cmd_buffer && strlen(cmd_buffer) > 0) {
-        process_command((char *)cmd_buffer);
-    }
-}
-
+// Gère l'itération de la boucle `for`
 int handle_for_iteration(for_loop_t *loop) {
+    struct stat st;
+
+    // Vérifie si le chemin existe et est un répertoire
+    if (stat(loop->directory, &st) == -1) {
+        perror("Error opening directory");
+        return -1;
+    }
+    if (!S_ISDIR(st.st_mode)) {
+        fprintf(stderr, "Error: %s is not a directory\n", loop->directory);
+        return -1;
+    }
+
+    printf("\n[DEBUG] Entrée dans handle_for_iteration() pour le répertoire : %s\n", loop->directory);
+
     DIR *dir = opendir(loop->directory);
     if (!dir) {
         perror("Error opening directory");
@@ -102,7 +90,8 @@ int handle_for_iteration(for_loop_t *loop) {
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue; // Ignore . et ..
+        // Ignore . et ..
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
         if (entry->d_name[0] == '.' && !loop->show_hidden) continue;
 
         // Filtrage par extension
@@ -111,38 +100,52 @@ int handle_for_iteration(for_loop_t *loop) {
             if (!dot || strcmp(dot + 1, loop->extension_filter) != 0) continue;
         }
 
-        // Construction du chemin complet
+        // Chemin complet
         char file_path[PATH_MAX];
         snprintf(file_path, sizeof(file_path), "%s/%s", loop->directory, entry->d_name);
 
-        // Construction de la commande avec substitutions
+        // Substitution de $F
         char cmd_buffer[2048] = "";
-        for (int i = 0; i < loop->command_parts_count; i++) {
-            const char *arg = loop->command_parts[i];
-            if (strcmp(arg, "$F") == 0) {
-                strncat(cmd_buffer, file_path, sizeof(cmd_buffer) - strlen(cmd_buffer) - 1);
-            } else if (strcmp(arg, "$D") == 0) {
-                strncat(cmd_buffer, loop->directory, sizeof(cmd_buffer) - strlen(cmd_buffer) - 1);
-            } else {
-                strncat(cmd_buffer, arg, sizeof(cmd_buffer) - strlen(cmd_buffer) - 1);
-            }
-            strncat(cmd_buffer, " ", sizeof(cmd_buffer) - strlen(cmd_buffer) - 1);
-        }
+        const char *cmd_template = loop->command_parts[0];
+        const char *start = cmd_template;
 
-        cmd_buffer[strlen(cmd_buffer) - 1] = '\0'; // Retirer l'espace final
-        execute_for_command(cmd_buffer);
+        printf("[DEBUG] Substitution de $F pour : %s\n", entry->d_name);
+
+        while (*start) {
+            const char *pos = strstr(start, "$F");
+            if (pos) {
+                strncat(cmd_buffer, start, pos - start);
+                strncat(cmd_buffer, file_path, sizeof(cmd_buffer) - strlen(cmd_buffer) - 1);
+                start = pos + 2;
+            } else {
+                strncat(cmd_buffer, start, sizeof(cmd_buffer) - strlen(cmd_buffer) - 1);
+                break;
+            }
+        }
+        if (strstr(cmd_buffer, "for ") != NULL) {
+            printf("[DEBUG] Détection d'une commande for imbriquée : %s\n", cmd_buffer);
+        } else {
+            printf("[DEBUG] Commande finale après substitution : %s\n", cmd_buffer);
+            process_command(cmd_buffer);
+        }   
     }
 
     closedir(dir);
     return 0;
 }
 
-
+// Exécute une boucle `for`
 int simple_for_loop(char *args[]) {
+    printf("\n[DEBUG] Début de simple_for_loop()\n");
+
     for_loop_t loop;
     if (parse_for_command(args, &loop) == -1) {
         return -1;
     }
 
-    return handle_for_iteration(&loop);
+    printf("[DEBUG] Début de handle_for_iteration()\n");
+    int result = handle_for_iteration(&loop);
+
+    printf("[DEBUG] Fin de simple_for_loop()\n");
+    return result;
 }
