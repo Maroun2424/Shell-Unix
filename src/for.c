@@ -80,7 +80,6 @@ int handle_for_iteration(for_loop_t *loop) {
         return -1;
     }
 
-    printf("\n[DEBUG] Entrée dans handle_for_iteration() pour le répertoire : %s\n", loop->directory);
 
     DIR *dir = opendir(loop->directory);
     if (!dir) {
@@ -109,7 +108,6 @@ int handle_for_iteration(for_loop_t *loop) {
         const char *cmd_template = loop->command_parts[0];
         const char *start = cmd_template;
 
-        printf("[DEBUG] Substitution de $F pour : %s\n", entry->d_name);
 
         while (*start) {
             const char *pos = strstr(start, "$F");
@@ -123,9 +121,7 @@ int handle_for_iteration(for_loop_t *loop) {
             }
         }
         if (strstr(cmd_buffer, "for ") != NULL) {
-            printf("[DEBUG] Détection d'une commande for imbriquée : %s\n", cmd_buffer);
         } else {
-            printf("[DEBUG] Commande finale après substitution : %s\n", cmd_buffer);
             process_command(cmd_buffer);
         }   
     }
@@ -136,16 +132,13 @@ int handle_for_iteration(for_loop_t *loop) {
 
 // Exécute une boucle `for`
 int simple_for_loop(char *args[]) {
-    printf("\n[DEBUG] Début de simple_for_loop()\n");
 
     for_loop_t loop;
     if (parse_for_command(args, &loop) == -1) {
         return -1;
     }
 
-    printf("[DEBUG] Début de handle_for_iteration()\n");
     int result = handle_for_iteration(&loop);
 
-    printf("[DEBUG] Fin de simple_for_loop()\n");
     return result;
 }
