@@ -215,10 +215,8 @@ cleanup_pipeline:
                     perror("exit: too_many_arguments_for_'exit'");
                     last_exit_status = 1;
                 } else {
-                    int exit_val = (arg_count > 1) ? atoi(args[1]) : last_exit_status;
+                    cmd_exit(arg_count > 1 ? args[1] : NULL);
                     free(input_copy);
-                    cmd_exit((arg_count > 1) ? args[1] : NULL);
-                    // Ne retournera pas ici
                 }
             } else if (strcmp(args[0], "for") == 0) {
                 last_exit_status = simple_for_loop(args);
