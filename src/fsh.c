@@ -1,4 +1,5 @@
 #include "../include/fsh.h"
+#include "../include/for.h"
 #include "../include/commandes_internes.h"
 #include "../include/commandes_simples.h"
 #include "../include/prompt.h"
@@ -254,8 +255,6 @@ void process_command(char *input) {
         int start = 0;
         for (int i = 0; i < token_count; i++) {
             if (strcmp(tokens[i], "|") == 0) {
-                int length = i - start;
-                // Calcul de la taille
                 int total_len = 0;
                 for (int j = start; j < i; j++)
                     total_len += strlen(tokens[j]) + 1;
@@ -274,7 +273,6 @@ void process_command(char *input) {
 
         // Le dernier segment après le dernier '|'
         if (start < token_count) {
-            int length = token_count - start;
             int total_len = 0;
             for (int j = start; j < token_count; j++)
                 total_len += strlen(tokens[j]) + 1;
