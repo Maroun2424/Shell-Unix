@@ -69,7 +69,7 @@ int cmd_if(char *args[]) {
         return 1;
     }
 
-    // Deuxième nettoyage des tokens (retirer \n et \r restants, au cas où)
+    // Deuxième nettoyage des tokens
     for (int j = 0; args[j] != NULL; j++) {
         char *nl = strchr(args[j], '\n');
         if (nl) *nl = '\0';
@@ -107,7 +107,7 @@ int cmd_if(char *args[]) {
     i++; // après '{'
     cmd1_start = i;
 
-    // Trouver '}' pour CMD_1
+    // Trouver '}'
     while (args[i] != NULL) {
         if (strcmp(args[i], "}") == 0) {
             cmd1_end = i;
@@ -183,7 +183,10 @@ int cmd_if(char *args[]) {
         }
     }
 
+    // Avant d'exécuter la commande TEST, activer if_test_mode
+    if_test_mode = 1;
     process_command(test_cmd);
+    if_test_mode = 0; // Revenir à la normale après le TEST
     int test_status = last_exit_status;
     int ret = 0;
 
