@@ -4,6 +4,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <errno.h>
 #include <linux/limits.h>
 #include "../include/fsh.h"
 #include "../include/commandes_internes.h"
@@ -26,8 +27,9 @@ int initialize_loop(char *args[], for_loop_t *loop) {
     memset(loop, 0, sizeof(for_loop_t));
 
     if (!args[0] || strcmp(args[0], "for") != 0 || !args[1] || !args[2] || strcmp(args[2], "in") != 0 || !args[3]) {
-        fprintf(stderr, "Syntax error: Invalid 'for' command\n");
-        return -1;
+    errno = EINVAL;
+    perror("Syntax error: Invalid 'for' command");
+    return -1;
     }
 
     loop->var_name = args[1];
@@ -95,7 +97,8 @@ int parse_command_block(char *args[], int start_index, for_loop_t *loop) {
     }
 
     if (brace_count != 0) {
-        fprintf(stderr, "Syntax error: Unmatched '{'\n");
+        errno = EINVAL;
+        perror("Syntax error: Unmatched '{'");
         return -1;
     }
 
