@@ -10,18 +10,28 @@ int split_commands(const char *input, char **commands, int max_commands) {
     char current_command[1024] = "";
     int cmd_len = 0;
     bool in_quotes = false;
+    int brace_count = 0; // Compteur d'accolades ouvertes
 
     for (const char *ptr = input; *ptr != '\0'; ptr++) {
         if (*ptr == '"') {
-            in_quotes = !in_quotes; // Bascule l'état des guillemets
-            current_command[cmd_len++] = *ptr; // Inclut le guillemet dans la commande
-        } else if (*ptr == ';' && !in_quotes) {
-            // Séparateur de commande hors guillemets
+            // Basculer l'état des guillemets
+            in_quotes = !in_quotes;
+            current_command[cmd_len++] = *ptr;
+        } else if (!in_quotes && *ptr == '{') {
+            // Entrée dans un bloc d'accolades
+            brace_count++;
+            current_command[cmd_len++] = *ptr;
+        } else if (!in_quotes && *ptr == '}') {
+            // Fermeture d'un bloc d'accolades
+            if (brace_count > 0) brace_count--;
+            current_command[cmd_len++] = *ptr;
+        } else if (*ptr == ';' && !in_quotes && brace_count == 0) {
+            // Séparateur de commande hors guillemets et hors accolades
             if (cmd_len > 0) {
                 current_command[cmd_len] = '\0';
                 commands[command_count++] = strdup(current_command);
                 if (command_count >= max_commands) break;
-                cmd_len = 0; // Réinitialise pour la commande suivante
+                cmd_len = 0; // Réinitialiser pour la prochaine commande
             }
         } else {
             current_command[cmd_len++] = *ptr;

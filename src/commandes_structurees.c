@@ -52,6 +52,8 @@ static bool check_braces_tokens(char *args[]) {
         if (cr) *cr = '\0';
 
         if (strchr(args[i], '{') || strchr(args[i], '}')) {
+            // Le token contient une accolade.
+            // Il doit être exactement "{" ou "}" pour être valide.
             if (!(strcmp(args[i], "{") == 0 || strcmp(args[i], "}") == 0)) {
                 return false; // Mauvais format
             }
@@ -130,6 +132,7 @@ int cmd_if(char *args[]) {
         i++; // après '{'
         cmd2_start = i;
 
+        // Trouver '}' pour CMD_2
         while (args[i] != NULL) {
             if (strcmp(args[i], "}") == 0) {
                 cmd2_end = i; 
