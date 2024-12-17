@@ -14,6 +14,7 @@
 #include <stdbool.h>
 
 int last_exit_status = 0;
+int if_test_mode = 0; // Variable globale pour indiquer qu'on exécute un TEST dans un if
 
 void process_command(const char *input) {
     if (!input || strlen(input) == 0) return; // Aucune commande à traiter
@@ -81,6 +82,18 @@ void process_command(const char *input) {
             // Commande externe
             pid_t pid = fork();
             if (pid == 0) { // Processus enfant
+                // si on exécute un TEST d'un if, rediriger stdout et stderr vers /dev/null
+                if (if_test_mode == 1) {
+                    int fd = open("/dev/null", O_WRONLY);
+                    if (fd != -1) {
+                        dup2(fd, STDOUT_FILENO);
+                        dup2(fd, STDERR_FILENO);
+                        close(fd);
+                    } else {
+                        perror("open /dev/null");
+                    }
+                }
+
                 execvp(args[0], args);
                 perror("execvp");
                 exit(EXIT_FAILURE);
