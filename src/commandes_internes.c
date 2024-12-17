@@ -27,13 +27,14 @@
 #include <sys/stat.h>
 #include <linux/limits.h>
 #include "../include/commandes_simples.h"
-#include "../include/fsh.h" // Pour `last_exit_status`
+#include "../include/command_executor.h" // Pour `last_exit_status`
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/wait.h>
 #include <string.h>
+#include <errno.h>
 
 
 #define MAX_PATH_LENGTH 1024
@@ -73,16 +74,18 @@ int cmd_cd(const char *path) {
     if (path == NULL || strcmp(path, "") == 0) {
         path = getenv("HOME");
         if (path == NULL) {
-            fprintf(stderr, "cd: HOME non défini\n");
+            errno = ENOENT; // "No such file or directory" pour HOME non défini
+            perror("cd: HOME non défini");
             return 1;
         }
     } else if (strcmp(path, "-") == 0) {
         if (strlen(previous_path) == 0) {
-            fprintf(stderr, "cd: OLDPWD non défini\n");
+            errno = ENOENT; // "No such file or directory" pour OLDPWD non défini
+            perror("cd: OLDPWD non défini");
             return 1;
         }
-        path = previous_path;
-    }
+    path = previous_path;
+}
 
     if (chdir(path) != 0) {
         perror("cd");
