@@ -1,3 +1,8 @@
+#ifndef REDIRECTIONS_H
+#define REDIRECTIONS_H
+
+#include <string.h>
+
 typedef enum {
     REDIR_INCONNU, // inconnu
     REDIR_INPUT, // (<)
@@ -10,4 +15,6 @@ typedef enum {
 } TypeDeRedirection;
 
 TypeDeRedirection getTypeRed(const char *token);
-void appliqueRedirection(TypeDeRedirection type, const char *filename);
+int appliqueRedirection(TypeDeRedirection type, const char *filename);
+
+#endif // REDIRECTIONS_H
