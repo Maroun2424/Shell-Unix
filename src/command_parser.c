@@ -5,6 +5,11 @@
 #include <string.h>
 #include <stdbool.h>
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <string.h>
+
 int split_commands(const char *input, char **commands, int max_commands) {
     int command_count = 0;
     char current_command[1024] = "";
@@ -16,36 +21,59 @@ int split_commands(const char *input, char **commands, int max_commands) {
         if (*ptr == '"') {
             // Basculer l'état des guillemets
             in_quotes = !in_quotes;
-            current_command[cmd_len++] = *ptr;
+            if (cmd_len < (sizeof(current_command) - 1)) {
+                current_command[cmd_len++] = *ptr;
+            }
         } else if (!in_quotes && *ptr == '{') {
             // Entrée dans un bloc d'accolades
             brace_count++;
-            current_command[cmd_len++] = *ptr;
+            if (cmd_len < (sizeof(current_command) - 1)) {
+                current_command[cmd_len++] = *ptr;
+            }
         } else if (!in_quotes && *ptr == '}') {
             // Fermeture d'un bloc d'accolades
             if (brace_count > 0) brace_count--;
-            current_command[cmd_len++] = *ptr;
+            if (cmd_len < (sizeof(current_command) - 1)) {
+                current_command[cmd_len++] = *ptr;
+            }
         } else if (*ptr == ';' && !in_quotes && brace_count == 0) {
             // Séparateur de commande hors guillemets et hors accolades
             if (cmd_len > 0) {
                 current_command[cmd_len] = '\0';
-                commands[command_count++] = strdup(current_command);
+                commands[command_count] = strdup(current_command);
+                if (!commands[command_count]) {
+                    perror("strdup failed");
+                    return -1; // Erreur d'allocation mémoire
+                }
+                command_count++;
                 if (command_count >= max_commands) break;
                 cmd_len = 0; // Réinitialiser pour la prochaine commande
             }
         } else {
-            current_command[cmd_len++] = *ptr;
+            // Ajouter le caractère s'il reste de la place
+            if (cmd_len < (sizeof(current_command) - 1)) {
+                current_command[cmd_len++] = *ptr;
+            } else {
+                fprintf(stderr, "split_commands: Command too long, truncating\n");
+                break;
+            }
         }
     }
 
     // Ajouter la dernière commande si elle existe
     if (cmd_len > 0) {
         current_command[cmd_len] = '\0';
-        commands[command_count++] = strdup(current_command);
+        commands[command_count] = strdup(current_command);
+        if (!commands[command_count]) {
+            perror("strdup failed");
+            return -1;
+        }
+        command_count++;
     }
 
     return command_count;
 }
+
 
 void process_sequential_commands(const char *input) {
     char *commands[100]; // Tableau pour stocker les commandes

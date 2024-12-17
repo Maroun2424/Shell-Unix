@@ -31,7 +31,7 @@ void process_command(const char *input) {
 
     for (int i = 0; i < command_count; i++) {
         char *input_copy = strdup(commands[i]); // Copie sécurisée
-        
+        free(commands[i]);
 
         // Découpage par espaces de la sous-commande
         char *args[100];
