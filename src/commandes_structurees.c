@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <errno.h> // Pour errno
 
 /*
 Syntaxe stricte:
@@ -55,7 +56,9 @@ static bool check_braces_tokens(char *args[]) {
             // Le token contient une accolade.
             // Il doit être exactement "{" ou "}" pour être valide.
             if (!(strcmp(args[i], "{") == 0 || strcmp(args[i], "}") == 0)) {
-                return false; // Mauvais format
+                errno = EINVAL; // Argument invalide
+                perror("Syntax error: braces must be isolated");
+                return false;
             }
         }
     }
@@ -65,8 +68,9 @@ static bool check_braces_tokens(char *args[]) {
 int cmd_if(char *args[]) {
     // Vérifier les accolades
     if (!check_braces_tokens(args)) {
-        fprintf(stderr, "Syntax error: braces must be isolated\n");
-        return 1;
+    errno = EINVAL; // Argument invalide pour une erreur de syntaxe
+    perror("Syntax error: braces must be isolated");
+    return 1;
     }
 
     // Deuxième nettoyage des tokens
@@ -95,12 +99,14 @@ int cmd_if(char *args[]) {
     }
 
     if (test_end == -1) {
-        fprintf(stderr, "Syntax error: missing '{' in if statement\n");
+        errno = EINVAL;
+        perror("Syntax error: missing '{' in if statement");
         return 1;
     }
 
     if (test_end == test_start) {
-        fprintf(stderr, "Syntax error: no TEST before '{'\n");
+        errno = EINVAL;
+        perror("Syntax error: no TEST before '{'");
         return 1;
     }
 
@@ -117,7 +123,8 @@ int cmd_if(char *args[]) {
     }
 
     if (cmd1_end == -1) {
-        fprintf(stderr, "Syntax error: missing '}' for the if-block\n");
+        errno = EINVAL;
+        perror("Syntax error: missing '}' for the if-block");
         return 1;
     }
 
@@ -126,7 +133,8 @@ int cmd_if(char *args[]) {
     if (args[i] != NULL && strcmp(args[i], "else") == 0) {
         i++;
         if (args[i] == NULL || strcmp(args[i], "{") != 0) {
-            fprintf(stderr, "Syntax error: missing '{' after else\n");
+            errno = EINVAL;
+            perror("Syntax error: missing '{' after else");
             return 1;
         }
         i++; // après '{'
@@ -142,19 +150,22 @@ int cmd_if(char *args[]) {
         }
 
         if (cmd2_end == -1) {
-            fprintf(stderr, "Syntax error: missing '}' for else-block\n");
+            errno = EINVAL;
+            perror("Syntax error: missing '}' for else-block");
             return 1;
         }
     }
 
     char *test_cmd = join_args(args, test_start, test_end);
     if (!test_cmd) {
-        fprintf(stderr, "Memory error (test_cmd)\n");
+        errno = ENOMEM;
+        perror("Memory error (test_cmd)");
         return 1;
     }
 
     if (cmd1_end == cmd1_start) {
-        fprintf(stderr, "Syntax error: empty if-block\n");
+        errno = EINVAL;
+        perror("Syntax error: empty if-block");
         free(test_cmd);
         return 1;
     }
@@ -162,14 +173,16 @@ int cmd_if(char *args[]) {
     char *cmd1_cmd = join_args(args, cmd1_start, cmd1_end);
     if (!cmd1_cmd) {
         free(test_cmd);
-        fprintf(stderr, "Memory error (cmd1_cmd)\n");
+        errno = ENOMEM;
+        perror("Memory error (cmd1_cmd)");
         return 1;
     }
 
     char *cmd2_cmd = NULL;
     if (cmd2_start != -1 && cmd2_end != -1) {
         if (cmd2_end == cmd2_start) {
-            fprintf(stderr, "Syntax error: empty else-block\n");
+            errno = EINVAL;
+            perror("Syntax error: empty else-block");
             free(test_cmd);
             free(cmd1_cmd);
             return 1;
@@ -178,7 +191,8 @@ int cmd_if(char *args[]) {
         if (!cmd2_cmd) {
             free(test_cmd);
             free(cmd1_cmd);
-            fprintf(stderr, "Memory error (cmd2_cmd)\n");
+            errno = ENOMEM;
+            perror("Memory error (cmd2_cmd)");
             return 1;
         }
     }
