@@ -17,4 +17,9 @@ typedef enum {
 TypeDeRedirection getTypeRed(const char *token);
 int appliqueRedirection(TypeDeRedirection type, const char *filename);
 
+int manage_redirections(char **args, int *arg_count,
+                        char **infile, char **outfile, char **errfile,
+                        TypeDeRedirection *out_type, TypeDeRedirection *err_type);
+
+
 #endif // REDIRECTIONS_H
