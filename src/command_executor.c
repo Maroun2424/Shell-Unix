@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <stdbool.h>
+#include <fcntl.h>
 
 int last_exit_status = 0;
 int if_test_mode = 0; // Variable globale pour indiquer qu'on exécute un TEST dans un if
@@ -30,7 +31,6 @@ void process_command(const char *input) {
         // Découpage strict par espaces
         char *token = strtok(input_copy, " ");
         while (token != NULL && arg_count < 100) {
-            // Pas de trim_whitespace
             if (strlen(token) > 0) {
                 args[arg_count++] = token;
             }
@@ -47,7 +47,7 @@ void process_command(const char *input) {
         // Commandes internes
         if (strcmp(args[0], "cd") == 0) {
             if (arg_count > 2) {
-                fprintf(stderr, "cd: too_many_arguments\n");
+                perror("cd: too_many_arguments");
                 last_exit_status = 1;
             } else {
                 const char *path = (arg_count > 1) ? args[1] : NULL;
@@ -55,14 +55,14 @@ void process_command(const char *input) {
             }
         } else if (strcmp(args[0], "pwd") == 0) {
             if (arg_count > 1) {
-                fprintf(stderr, "pwd: extra: invalid_argument\n");
+                perror("pwd: extra: invalid_argument");
                 last_exit_status = 1;
             } else {
                 last_exit_status = cmd_pwd();
             }
         } else if (strcmp(args[0], "exit") == 0) {
             if (arg_count > 2) {
-                fprintf(stderr, "exit: too_many_arguments_for_'exit'\n");
+                perror("exit: too_many_arguments_for_'exit'");
                 last_exit_status = 1;
             } else {
                 cmd_exit(arg_count > 1 ? args[1] : NULL);
@@ -71,7 +71,7 @@ void process_command(const char *input) {
             last_exit_status = simple_for_loop(args);
         } else if (strcmp(args[0], "ftype") == 0) {
             if (arg_count != 2) {
-                fprintf(stderr, "Error: 'ftype' command requires exactly one argument.\n");
+                perror("Error: 'ftype' command requires exactly one argument");
                 last_exit_status = 1;
             } else {
                 last_exit_status = cmd_ftype(args[1]);
