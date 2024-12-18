@@ -135,13 +135,14 @@ int should_include_file(const struct dirent *entry, const for_loop_t *loop, cons
 
     return 1;
 }
-
-void process_directory(const for_loop_t *loop) {
+int process_directory(const for_loop_t *loop) {
     DIR *dir = opendir(loop->directory);
     if (!dir) {
         perror("Error opening directory");
-        return;
+        return 1;
     }
+
+    int result = 0; // Indique si une erreur est survenue
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
@@ -156,22 +157,29 @@ void process_directory(const for_loop_t *loop) {
         if (S_ISDIR(st.st_mode) && loop->recursive) {
             for_loop_t sub_loop = *loop;
             sub_loop.directory = file_path;
-            process_directory(&sub_loop);
+            if (process_directory(&sub_loop) != 0) result = 1; // Propager les erreurs
         }
 
         if (should_include_file(entry, loop, loop->directory)) {
             char cmd_buffer[2048];
             generate_command_with_substitution(loop->command_parts[0], file_path, loop, cmd_buffer, sizeof(cmd_buffer));
-            process_command(cmd_buffer);
+            
+            process_command(cmd_buffer); // Exécuter la commande
+            if (last_exit_status != 0) { // Vérifier si une erreur est survenue
+                result = 1;
+            }
         }
     }
 
     closedir(dir);
+    return result; // Retourner 1 si une erreur est détectée
 }
+
 
 int simple_for_loop(char *args[]) {
     for_loop_t loop;
 
+    // Initialiser la boucle
     if (initialize_loop(args, &loop) == -1) return -1;
     if (parse_command_block(args, 4, &loop) == -1) {
         free(loop.command_parts[0]);
@@ -179,9 +187,10 @@ int simple_for_loop(char *args[]) {
         return -1;
     }
 
-    process_directory(&loop);
+    // Exécuter process_directory et retourner son résultat
+    int result = process_directory(&loop);
 
     free(loop.command_parts[0]);
     free(loop.command_parts);
-    return 0;
+    return result; // Retourne la valeur renvoyée par process_directory
 }
