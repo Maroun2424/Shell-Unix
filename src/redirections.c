@@ -25,14 +25,13 @@ int appliqueRedirection(TypeDeRedirection type, const char *filename) {
 
     switch (type) {
         case REDIR_INPUT:         target_fd = STDIN_FILENO;  fd = open(filename, O_RDONLY); break;
-        case REDIR_OUTPUT:        target_fd = STDOUT_FILENO; fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0664); break;
+        case REDIR_OUTPUT:        target_fd = STDOUT_FILENO; fd = open(filename, O_WRONLY | O_CREAT | O_EXCL , 0664); break;
         case REDIR_FORCE_OUTPUT:  target_fd = STDOUT_FILENO; fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0664); break;
         case REDIR_APPEND_OUTPUT: target_fd = STDOUT_FILENO; fd = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0664); break;
-        case REDIR_ERROR:         target_fd = STDERR_FILENO; fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0664); break;
+        case REDIR_ERROR:         target_fd = STDERR_FILENO; fd = open(filename, O_WRONLY | O_CREAT | O_EXCL, 0664); break;
         case REDIR_FORCE_ERROR:   target_fd = STDERR_FILENO; fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0664); break;
         case REDIR_APPEND_ERROR:  target_fd = STDERR_FILENO; fd = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0664); break;
-        errno = EINVAL; perror("Redirection inconnue");
-
+        case REDIR_INCONNU:       perror("Redirection inconnue"); break;
     }
 
     if (fd == -1) {
@@ -109,7 +108,7 @@ int manage_redirections(char **args, int *arg_count,
             memmove(&args[i], &args[i + 2], (*arg_count - i - 2) * sizeof(char *));
             *arg_count -= 2;
             args[*arg_count] = NULL;
-            i--; // On réévalue la même position au prochain tour
+            i--; // Réévalue la même position
         }
     }
 
