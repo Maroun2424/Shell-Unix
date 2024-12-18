@@ -25,34 +25,22 @@ int appliqueRedirection(TypeDeRedirection type, const char *filename) {
 
     switch (type) {
         case REDIR_INPUT:         target_fd = STDIN_FILENO;  fd = open(filename, O_RDONLY); break;
-        case REDIR_OUTPUT:        target_fd = STDOUT_FILENO; fd = open(filename, O_WRONLY | O_CREAT | O_EXCL, 0664); break;
+        case REDIR_OUTPUT:        target_fd = STDOUT_FILENO; fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0664); break;
         case REDIR_FORCE_OUTPUT:  target_fd = STDOUT_FILENO; fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0664); break;
         case REDIR_APPEND_OUTPUT: target_fd = STDOUT_FILENO; fd = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0664); break;
-        case REDIR_ERROR:         target_fd = STDERR_FILENO; fd = open(filename, O_WRONLY | O_CREAT | O_EXCL, 0664); break;
+        case REDIR_ERROR:         target_fd = STDERR_FILENO; fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0664); break;
         case REDIR_FORCE_ERROR:   target_fd = STDERR_FILENO; fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0664); break;
         case REDIR_APPEND_ERROR:  target_fd = STDERR_FILENO; fd = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0664); break;
-        default:                  fprintf(stderr, "Type de redirection inconnu\n"); return 1;
+        errno = EINVAL; perror("Redirection inconnue");
+
     }
 
     if (fd == -1) {
-        if (errno == EEXIST) {
-            if (target_fd == STDOUT_FILENO) {
-                fprintf(stderr, "pipeline_run: File exists\n");
-            } else if (target_fd == STDERR_FILENO) {
-                fprintf(stderr, "redirect_exec: File exists\n");
-            } else {
-                perror("open");
-            }
-        } else {
-            fprintf(stderr, "Erreur lors de l'ouverture du fichier: ");
-            perror("open");
-        }
+        perror("open");
         return 1;
     }
 
-
     if (dup2(fd, target_fd) == -1) {
-        fprintf(stderr, "Erreur lors de la redirection du descripteur de fichier: ");
         perror("dup2");
         close(fd);
         return 1;
@@ -75,7 +63,7 @@ int manage_redirections(char **args, int *arg_count,
         TypeDeRedirection redir = getTypeRed(args[i]);
         if (redir != REDIR_INCONNU) {
             if (i + 1 >= *arg_count) {
-                fprintf(stderr, "Redirection sans fichier\n");
+                errno = EINVAL; perror("Redirection sans fichier");
                 return 1;
             }
 
@@ -84,7 +72,7 @@ int manage_redirections(char **args, int *arg_count,
             switch (redir) {
                 case REDIR_INPUT:
                     if (*infile != NULL) {
-                        fprintf(stderr, "Redirections multiples input pas supportées\n");
+                        errno = EEXIST; perror("Redirection input multiple");
                         return 1;
                     }
                     *infile = filename;
@@ -94,7 +82,7 @@ int manage_redirections(char **args, int *arg_count,
                 case REDIR_FORCE_OUTPUT:
                 case REDIR_APPEND_OUTPUT:
                     if (*outfile != NULL) {
-                        fprintf(stderr, "Redirections multiples output pas supportées\n");
+                        errno = EEXIST; perror("Redirection output multiple");
                         return 1;
                     }
                     *outfile = filename;
@@ -105,7 +93,7 @@ int manage_redirections(char **args, int *arg_count,
                 case REDIR_FORCE_ERROR:
                 case REDIR_APPEND_ERROR:
                     if (*errfile != NULL) {
-                        fprintf(stderr, "Redirections multiples error pas supportées\n");
+                        errno = EEXIST; perror("Redirection error multiple");
                         return 1;
                     }
                     *errfile = filename;
@@ -113,7 +101,7 @@ int manage_redirections(char **args, int *arg_count,
                     break;
 
                 default:
-                    fprintf(stderr, "Redirection inconnu\n");
+                    errno = EINVAL; perror("Redirection inconnue");
                     return 1;
             }
 
