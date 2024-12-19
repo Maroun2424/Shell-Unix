@@ -44,11 +44,10 @@ int initialize_loop(char *args[], for_loop_t *loop) {
         if (strcmp(args[i], "{") == 0) {
             break;
         } else if (args[i][0] == '-') {
-            // Options possibles: -A, -e <ext>, -t <type>, -r
             if (strcmp(args[i], "-A") == 0) {
                 loop->show_hidden = 1;
             } else if (strcmp(args[i], "-e") == 0 && args[i+1]) {
-                loop->extension_filter = strdup(args[++i]);
+                loop->extension_filter = args[++i];
             } else if (strcmp(args[i], "-t") == 0 && args[i+1]) {
                 loop->type_filter = args[++i][0];
             } else if (strcmp(args[i], "-r") == 0) {
