@@ -1,10 +1,10 @@
 #include "commandes_structurees.h"
-#include "../include/command_executor.h" // pour process_command et last_exit_status
+#include "../include/command_executor.h" 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <errno.h> // Pour errno
+#include <errno.h>
 
 /*
 Syntaxe stricte:
@@ -44,19 +44,15 @@ static char* join_args(char *args[], int start, int end) {
  */
 static bool check_braces_tokens(char *args[]) {
     for (int i = 0; args[i] != NULL; i++) {
-        // Suppression d'éventuels '\n'
         char *nl = strchr(args[i], '\n');
         if (nl) *nl = '\0';
 
-        // Suppression d'éventuels '\r'
         char *cr = strchr(args[i], '\r');
         if (cr) *cr = '\0';
 
         if (strchr(args[i], '{') || strchr(args[i], '}')) {
-            // Le token contient une accolade.
-            // Il doit être exactement "{" ou "}" pour être valide.
             if (!(strcmp(args[i], "{") == 0 || strcmp(args[i], "}") == 0)) {
-                errno = EINVAL; // Argument invalide
+                errno = EINVAL;
                 perror("Syntax error: braces must be isolated");
                 return false;
             }
@@ -66,14 +62,13 @@ static bool check_braces_tokens(char *args[]) {
 }
 
 int cmd_if(char *args[]) {
-    // Vérifier les accolades
     if (!check_braces_tokens(args)) {
-    errno = EINVAL; // Argument invalide pour une erreur de syntaxe
-    perror("Syntax error: braces must be isolated");
-    return 1;
+        errno = EINVAL;
+        perror("Syntax error: braces must be isolated");
+        return 1;
     }
 
-    // Deuxième nettoyage des tokens
+    // Nettoyage
     for (int j = 0; args[j] != NULL; j++) {
         char *nl = strchr(args[j], '\n');
         if (nl) *nl = '\0';
@@ -81,15 +76,10 @@ int cmd_if(char *args[]) {
         if (cr) *cr = '\0';
     }
 
-    int i = 1; // après 'if'
+    int i = 1;
     int test_start = i;
-    int test_end = -1;
-    int cmd1_start = -1;
-    int cmd1_end = -1;
-    int cmd2_start = -1;
-    int cmd2_end = -1;
+    int test_end = -1; 
 
-    // Trouver '{' pour séparer TEST
     while (args[i] != NULL) {
         if (strcmp(args[i], "{") == 0) {
             test_end = i;
@@ -110,56 +100,34 @@ int cmd_if(char *args[]) {
         return 1;
     }
 
-    i++; // après '{'
-    cmd1_start = i;
+    char *test_cmd = join_args(args, test_start, test_end);
+    if (!test_cmd) {
+        errno = ENOMEM;
+        perror("Memory error (test_cmd)");
+        return 1;
+    }
 
-    // Trouver '}'
-    while (args[i] != NULL) {
-        if (strcmp(args[i], "}") == 0) {
-            cmd1_end = i;
-            break;
+    int cmd1_start = test_end + 1;
+    int cmd1_end = -1;
+    int brace_count = 1;
+
+    int k = cmd1_start;
+    for (; args[k]; k++) {
+        if (strcmp(args[k], "{") == 0) {
+            brace_count++;
+        } else if (strcmp(args[k], "}") == 0) {
+            brace_count--;
+            if (brace_count == 0) {
+                cmd1_end = k;
+                break;
+            }
         }
-        i++;
     }
 
     if (cmd1_end == -1) {
         errno = EINVAL;
         perror("Syntax error: missing '}' for the if-block");
-        return 1;
-    }
-
-    i++; // après '}'
-    // Vérifier s'il y a un else
-    if (args[i] != NULL && strcmp(args[i], "else") == 0) {
-        i++;
-        if (args[i] == NULL || strcmp(args[i], "{") != 0) {
-            errno = EINVAL;
-            perror("Syntax error: missing '{' after else");
-            return 1;
-        }
-        i++; // après '{'
-        cmd2_start = i;
-
-        // Trouver '}' pour CMD_2
-        while (args[i] != NULL) {
-            if (strcmp(args[i], "}") == 0) {
-                cmd2_end = i; 
-                break;
-            }
-            i++;
-        }
-
-        if (cmd2_end == -1) {
-            errno = EINVAL;
-            perror("Syntax error: missing '}' for else-block");
-            return 1;
-        }
-    }
-
-    char *test_cmd = join_args(args, test_start, test_end);
-    if (!test_cmd) {
-        errno = ENOMEM;
-        perror("Memory error (test_cmd)");
+        free(test_cmd);
         return 1;
     }
 
@@ -178,8 +146,50 @@ int cmd_if(char *args[]) {
         return 1;
     }
 
-    char *cmd2_cmd = NULL;
-    if (cmd2_start != -1 && cmd2_end != -1) {
+    int cmd2_start = -1, cmd2_end = -1;
+    k = cmd1_end + 1;
+    if (args[k] != NULL && strcmp(args[k], "else") == 0) {
+        k++;
+
+        int else_brace = -1;
+        for (; args[k]; k++) {
+            if (strcmp(args[k], "{") == 0) {
+                else_brace = k;
+                k++;
+                break;
+            }
+        }
+
+        if (else_brace == -1) {
+            errno = EINVAL;
+            perror("Syntax error: missing '{' after else");
+            free(test_cmd);
+            free(cmd1_cmd);
+            return 1;
+        }
+
+        brace_count = 1;
+        cmd2_start = k;
+        for (; args[k]; k++) {
+            if (strcmp(args[k], "{") == 0) {
+                brace_count++;
+            } else if (strcmp(args[k], "}") == 0) {
+                brace_count--;
+                if (brace_count == 0) {
+                    cmd2_end = k;
+                    break;
+                }
+            }
+        }
+
+        if (cmd2_end == -1) {
+            errno = EINVAL;
+            perror("Syntax error: missing '}' for else-block");
+            free(test_cmd);
+            free(cmd1_cmd);
+            return 1;
+        }
+
         if (cmd2_end == cmd2_start) {
             errno = EINVAL;
             perror("Syntax error: empty else-block");
@@ -187,6 +197,10 @@ int cmd_if(char *args[]) {
             free(cmd1_cmd);
             return 1;
         }
+    }
+
+    char *cmd2_cmd = NULL;
+    if (cmd2_start != -1 && cmd2_end != -1) {
         cmd2_cmd = join_args(args, cmd2_start, cmd2_end);
         if (!cmd2_cmd) {
             free(test_cmd);
@@ -197,10 +211,9 @@ int cmd_if(char *args[]) {
         }
     }
 
-    // Avant d'exécuter la commande TEST, activer if_test_mode
     if_test_mode = 1;
     process_command(test_cmd);
-    if_test_mode = 0; // Revenir à la normale après le TEST
+    if_test_mode = 0;
     int test_status = last_exit_status;
     int ret = 0;
 
