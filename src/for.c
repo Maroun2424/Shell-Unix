@@ -179,7 +179,6 @@ int process_directory(const for_loop_t *loop) {
         return 1;
     }
 
-    int result = 0;
     int max_return = 0;
 
     struct dirent *entry;
