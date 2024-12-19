@@ -39,25 +39,32 @@ int initialize_loop(char *args[], for_loop_t *loop) {
     loop->extension_filter = NULL;
     loop->type_filter = '\0';
 
-    // Analyse des options (ex: -A, -e, -t, -r)
-    for (int i = 4; args[i] && strcmp(args[i], "{") != 0; i++) {
-        if (strcmp(args[i], "-A") == 0) {
-            loop->show_hidden = 1;
-        } else if (strcmp(args[i], "-e") == 0 && args[i + 1]) {
-            loop->extension_filter = strdup(args[++i]);
-        } else if (strcmp(args[i], "-t") == 0 && args[i + 1]) {
-            loop->type_filter = args[++i][0];
-        } else if (strcmp(args[i], "-r") == 0) {
-            loop->recursive = 1;
+    int i = 4;
+    for (; args[i]; i++) {
+        if (strcmp(args[i], "{") == 0) {
+            break;
+        } else if (args[i][0] == '-') {
+            // Options possibles: -A, -e <ext>, -t <type>, -r
+            if (strcmp(args[i], "-A") == 0) {
+                loop->show_hidden = 1;
+            } else if (strcmp(args[i], "-e") == 0 && args[i+1]) {
+                loop->extension_filter = strdup(args[++i]);
+            } else if (strcmp(args[i], "-t") == 0 && args[i+1]) {
+                loop->type_filter = args[++i][0];
+            } else if (strcmp(args[i], "-r") == 0) {
+                loop->recursive = 1;
+            } else {
+                break;
+            }
         } else {
-            // Option non reconnue, on pourrait signaler une erreur
-            errno = EINVAL;
-            perror("Syntax error: Unknown option in 'for' command");
-            return -1;
+            break;
         }
     }
+
     return 0;
 }
+
+
 
 void generate_command_with_substitution(const char *template, const char *file_path, const for_loop_t *loop, char *cmd_buffer, size_t buffer_size) {
     cmd_buffer[0] = '\0';
@@ -69,7 +76,6 @@ void generate_command_with_substitution(const char *template, const char *file_p
         if (pos) {
             strncat(cmd_buffer, start, pos - start);
 
-            // Gestion de l'extension si nécessaire
             if (loop->extension_filter) {
                 char base_name[PATH_MAX];
                 strncpy(base_name, file_path, sizeof(base_name));
@@ -91,44 +97,37 @@ void generate_command_with_substitution(const char *template, const char *file_p
 
 int parse_command_block(char *args[], int start_index, for_loop_t *loop) {
     char command_buffer[1024] = "";
-    int brace_count = 0;
-    bool found_block_start = false;
+    command_buffer[0] = '\0';
 
-    // On cherche d'abord un '{'
     int i = start_index;
     for (; args[i]; i++) {
         if (strcmp(args[i], "{") == 0) {
-            brace_count = 1;
-            found_block_start = true;
             i++;
             break;
         }
     }
 
-    if (!found_block_start) {
+    if (!args[i] && strcmp(args[i-1], "{") != 0) {
         errno = EINVAL;
         perror("Syntax error: missing '{' in for command");
         return -1;
     }
 
+    int brace_count = 1;
     for (; args[i]; i++) {
         if (strcmp(args[i], "{") == 0) {
             brace_count++;
+            strncat(command_buffer, "{ ", sizeof(command_buffer)-strlen(command_buffer)-1);
         } else if (strcmp(args[i], "}") == 0) {
             brace_count--;
             if (brace_count == 0) {
-                // Fin du bloc
                 break;
             } else {
-                strncat(command_buffer, args[i], sizeof(command_buffer)-strlen(command_buffer)-1);
-                strncat(command_buffer, " ", sizeof(command_buffer)-strlen(command_buffer)-1);
+                strncat(command_buffer, "} ", sizeof(command_buffer)-strlen(command_buffer)-1);
             }
         } else {
-            // On est dans le bloc
-            if (brace_count > 0) {
-                strncat(command_buffer, args[i], sizeof(command_buffer)-strlen(command_buffer)-1);
-                strncat(command_buffer, " ", sizeof(command_buffer)-strlen(command_buffer)-1);
-            }
+            strncat(command_buffer, args[i], sizeof(command_buffer)-strlen(command_buffer)-1);
+            strncat(command_buffer, " ", sizeof(command_buffer)-strlen(command_buffer)-1);
         }
     }
 
@@ -143,6 +142,8 @@ int parse_command_block(char *args[], int start_index, for_loop_t *loop) {
     loop->command_parts_count = 1;
     return 0;
 }
+
+
 
 int should_include_file(const struct dirent *entry, const for_loop_t *loop, const char *dir_path) {
     if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) return 0;
@@ -178,8 +179,8 @@ int process_directory(const for_loop_t *loop) {
         return 1;
     }
 
-    int result = 0; // 0 signifie succès, on gardera le max
-    int max_return = 0; // On stocke le max des retours
+    int result = 0;
+    int max_return = 0;
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
@@ -194,7 +195,6 @@ int process_directory(const for_loop_t *loop) {
         if (S_ISDIR(st.st_mode) && loop->recursive) {
             for_loop_t sub_loop = *loop;
             sub_loop.directory = file_path;
-            // On traite le répertoire récursivement
             int sub_result = process_directory(&sub_loop);
             if (sub_result > max_return) max_return = sub_result;
         }
@@ -204,7 +204,6 @@ int process_directory(const for_loop_t *loop) {
             generate_command_with_substitution(loop->command_parts[0], file_path, loop, cmd_buffer, sizeof(cmd_buffer));
 
             process_command(cmd_buffer); 
-            // On récupère last_exit_status mis à jour par process_command
             if (last_exit_status > max_return) max_return = last_exit_status;
         }
     }
@@ -217,9 +216,23 @@ int simple_for_loop(char *args[]) {
     for_loop_t loop;
 
     if (initialize_loop(args, &loop) == -1) return 1;
-    if (parse_command_block(args, 4, &loop) == -1) {
-        free(loop.command_parts[0]);
-        free(loop.command_parts);
+
+    int start_i = 4; 
+    int brace_found = 0;
+    for (; args[start_i]; start_i++) {
+        if (strcmp(args[start_i], "{") == 0) {
+            brace_found = 1;
+            break;
+        }
+    }
+
+    if (!brace_found) {
+        errno = EINVAL;
+        perror("Syntax error: missing '{' in for command");
+        return 1;
+    }
+
+    if (parse_command_block(args, start_i, &loop) == -1) {
         return 1;
     }
 
@@ -228,7 +241,7 @@ int simple_for_loop(char *args[]) {
     free(loop.command_parts[0]);
     free(loop.command_parts);
 
-    // On retourne le max des valeurs de retour
     last_exit_status = result;
     return result;
 }
+
