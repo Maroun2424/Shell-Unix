@@ -21,19 +21,19 @@ int split_commands(const char *input, char **commands, int max_commands) {
         if (*ptr == '"') {
             // Basculer l'état des guillemets
             in_quotes = !in_quotes;
-            if (cmd_len < (sizeof(current_command) - 1)) {
+            if ((size_t)cmd_len < (sizeof(current_command) - 1)) {
                 current_command[cmd_len++] = *ptr;
             }
         } else if (!in_quotes && *ptr == '{') {
             // Entrée dans un bloc d'accolades
             brace_count++;
-            if (cmd_len < (sizeof(current_command) - 1)) {
+            if ((size_t)cmd_len < (sizeof(current_command) - 1)) {
                 current_command[cmd_len++] = *ptr;
             }
         } else if (!in_quotes && *ptr == '}') {
             // Fermeture d'un bloc d'accolades
             if (brace_count > 0) brace_count--;
-            if (cmd_len < (sizeof(current_command) - 1)) {
+            if ((size_t)cmd_len < (sizeof(current_command) - 1)) {
                 current_command[cmd_len++] = *ptr;
             }
         } else if (*ptr == ';' && !in_quotes && brace_count == 0) {
@@ -51,7 +51,7 @@ int split_commands(const char *input, char **commands, int max_commands) {
             }
         } else {
             // Ajouter le caractère s'il reste de la place
-            if (cmd_len < (sizeof(current_command) - 1)) {
+            if ((size_t)cmd_len < (sizeof(current_command) - 1)) {
                 current_command[cmd_len++] = *ptr;
             } else {
                 fprintf(stderr, "split_commands: Command too long, truncating\n");
