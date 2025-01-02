@@ -131,12 +131,39 @@ static void execute_single_command(char **args, int arg_count)
     int saved_stdout = dup(STDOUT_FILENO);
     int saved_stderr = dup(STDERR_FILENO);
 
-    //
-    // Certaines commandes internes (cd, exit) doivent s'exécuter dans le parent
-    // pour avoir un effet persistant (changer de répertoire, terminer le shell, etc.).
-    //
+    // --- 1) Gérer les redirections dans le parent (y compris pour exit, cd, etc.) ---
+    char *infile = NULL, *outfile = NULL, *errfile = NULL;
+    TypeDeRedirection out_type = REDIR_INCONNU, err_type = REDIR_INCONNU;
+
+    // On retire du tableau d'arguments toutes les redirections, pour ne pas
+    // confondre "< fichier" avec des arguments. 
+    // On applique immédiatement la redirection (dup2) si c'est OK.
+    if (manage_redirections(args, &arg_count,
+                            &infile, &outfile, &errfile,
+                            &out_type, &err_type) != 0) {
+        // En cas d'échec (p.ex. redirection sans fichier), on règle last_exit_status = 1 et on sort
+        last_exit_status = 1;
+        goto restore_fds;
+    }
+
+    // Appliquer effectivement les redirections sur le shell parent
+    if (infile && appliqueRedirection(REDIR_INPUT, infile) != 0) {
+        last_exit_status = 1;
+        goto restore_fds;
+    }
+    if (outfile && appliqueRedirection(out_type, outfile) != 0) {
+        last_exit_status = 1;
+        goto restore_fds;
+    }
+    if (errfile && appliqueRedirection(err_type, errfile) != 0) {
+        last_exit_status = 1;
+        goto restore_fds;
+    }
+
+    // --- 2) Maintenant, on vérifie si la commande est un builtin "parent" ---
+    //     (cd, exit) qui doit s'exécuter SANS fork pour affecter le shell.
     if (strcmp(args[0], "cd") == 0) {
-        // Pas de fork si on veut vraiment changer de répertoire dans le shell
+        // "cd" : on ne fork pas car on veut changer le répertoire du shell lui-même
         if (arg_count > 2) {
             fprintf(stderr, "cd: too many arguments\n");
             last_exit_status = 1;
@@ -144,56 +171,53 @@ static void execute_single_command(char **args, int arg_count)
             const char *path = (arg_count > 1) ? args[1] : NULL;
             last_exit_status = cmd_cd(path);
         }
-        // On restaure les fds
-        dup2(saved_stdin,  STDIN_FILENO);
-        dup2(saved_stdout, STDOUT_FILENO);
-        dup2(saved_stderr, STDERR_FILENO);
-        close(saved_stdin);
-        close(saved_stdout);
-        close(saved_stderr);
-        return;
     }
     else if (strcmp(args[0], "exit") == 0) {
-        // "exit" dans le shell principal
+        // "exit" : idem, pas de fork => on quitte directement
         if (arg_count > 2) {
             fprintf(stderr, "exit: too many arguments\n");
             last_exit_status = 1;
         } else {
             cmd_exit((arg_count > 1) ? args[1] : NULL);
+            // Normalement on ne revient pas ici...
         }
-        // Normalement, on ne revient jamais ici
-        return;
-    }
-
-    // Pour les autres commandes, on fork
-    pid_t pid = fork();
-    if (pid < 0) {
-        perror("fork");
-        last_exit_status = 1;
-    }
-    else if (pid == 0) {
-        // Enfant : exécute la commande
-        run_subcommand_in_child(args, arg_count);
     }
     else {
-        // Parent : on attend la fin
-        int status;
-        waitpid(pid, &status, 0);
-        if (WIFEXITED(status)) {
-            last_exit_status = WEXITSTATUS(status);
-        } else if (WIFSIGNALED(status)) {
-            last_exit_status = 1; // ou 128 + signal
+        // --- 3) Sinon (commande interne "fsh" exécutable dans le fils, ou commande externe) ---
+        pid_t pid = fork();
+        if (pid < 0) {
+            perror("fork");
+            last_exit_status = 1;
+        }
+        else if (pid == 0) {
+            // Enfant : on exécute la commande (redirections déjà faites sur le parent 
+            // pour stdin/stdout/stderr, mais on peut re-checker si on veut un design différent).
+            run_subcommand_in_child(args, arg_count);
+            // Pas censé revenir
+        }
+        else {
+            // Parent : on attend la fin
+            int status;
+            waitpid(pid, &status, 0);
+            if (WIFEXITED(status)) {
+                last_exit_status = WEXITSTATUS(status);
+            } else if (WIFSIGNALED(status)) {
+                last_exit_status = 1; 
+            }
         }
     }
 
-    // Restaure les fds dans le parent
+restore_fds:
+    // --- 4) On restaure les descripteurs standard dans le parent ---
     dup2(saved_stdin,  STDIN_FILENO);
     dup2(saved_stdout, STDOUT_FILENO);
     dup2(saved_stderr, STDERR_FILENO);
+
     close(saved_stdin);
     close(saved_stdout);
     close(saved_stderr);
 }
+
 
 
 /**
