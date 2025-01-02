@@ -18,19 +18,9 @@
 int last_exit_status = 0;
 int if_test_mode = 0; // Indique si on exécute un TEST dans un if
 
-/**
- * @brief Fonction interne qui applique les redirections à un tableau d'arguments,
- *        puis exécute soit une commande interne, soit une commande externe via execvp.
- *        Cette fonction est prévue pour être appelée depuis un processus enfant.
- *
- * @param args      Tableau des arguments (découpés par espaces).
- * @param arg_count Nombre d'arguments dans @p args.
- */
 static void run_subcommand_in_child(char **args, int arg_count)
 {
-    //
-    // 1) Gérer les redirections si présentes
-    //
+
     char *infile = NULL;
     char *outfile = NULL;
     char *errfile = NULL;
@@ -53,13 +43,6 @@ static void run_subcommand_in_child(char **args, int arg_count)
         exit(1);
     }
 
-    //
-    // 2) Commandes internes ou externes
-    //
-    // Attention : certaines commandes internes (cd, exit) n'ont de sens
-    // que dans le parent. Ici, si elles apparaissent dans un pipeline,
-    // on choisit de faire un simple message d'erreur, ou on pourrait les ignorer.
-    //
     if (strcmp(args[0], "cd") == 0) {
         // Exécution d'un "cd" dans un enfant ne change pas le répertoire du parent,
         // donc on avertit simplement l'utilisateur.
@@ -117,27 +100,15 @@ static void run_subcommand_in_child(char **args, int arg_count)
 }
 
 
-/**
- * @brief Exécute une commande "simple" (c'est-à-dire sans pipe) dans un fork,
- *        et met à jour last_exit_status dans le parent.
- *
- * @param args      Tableau d'arguments (déjà découpé).
- * @param arg_count Nombre d'arguments dans @p args.
- */
-static void execute_single_command(char **args, int arg_count)
-{
+static void execute_single_command(char **args, int arg_count) {
     // Sauvegarde des descripteurs standard du parent
     int saved_stdin  = dup(STDIN_FILENO);
     int saved_stdout = dup(STDOUT_FILENO);
     int saved_stderr = dup(STDERR_FILENO);
 
-    // --- 1) Gérer les redirections dans le parent (y compris pour exit, cd, etc.) ---
     char *infile = NULL, *outfile = NULL, *errfile = NULL;
     TypeDeRedirection out_type = REDIR_INCONNU, err_type = REDIR_INCONNU;
 
-    // On retire du tableau d'arguments toutes les redirections, pour ne pas
-    // confondre "< fichier" avec des arguments. 
-    // On applique immédiatement la redirection (dup2) si c'est OK.
     if (manage_redirections(args, &arg_count,
                             &infile, &outfile, &errfile,
                             &out_type, &err_type) != 0) {
@@ -160,8 +131,6 @@ static void execute_single_command(char **args, int arg_count)
         goto restore_fds;
     }
 
-    // --- 2) Maintenant, on vérifie si la commande est un builtin "parent" ---
-    //     (cd, exit) qui doit s'exécuter SANS fork pour affecter le shell.
     if (strcmp(args[0], "cd") == 0) {
         // "cd" : on ne fork pas car on veut changer le répertoire du shell lui-même
         if (arg_count > 2) {
@@ -183,7 +152,6 @@ static void execute_single_command(char **args, int arg_count)
         }
     }
     else {
-        // --- 3) Sinon (commande interne "fsh" exécutable dans le fils, ou commande externe) ---
         pid_t pid = fork();
         if (pid < 0) {
             perror("fork");
@@ -219,17 +187,6 @@ restore_fds:
 }
 
 
-
-/**
- * @brief Sépare un tableau d'arguments en plusieurs sous-tableaux,
- *        en coupant sur le token "|" (pipe).
- *
- * @param args         Le tableau d'arguments d'origine.
- * @param arg_count    Nombre d'arguments dans @p args.
- * @param segments     Tableau de segments (chacun sera un tableau de char*).
- * @param max_segments Taille maximale du tableau @p segments.
- * @return Le nombre de segments (sous-commandes) trouvés, ou -1 si erreur.
- */
 static int split_pipeline(char **args, int arg_count,
                           char ***segments, int max_segments)
 {
@@ -274,14 +231,8 @@ static int split_pipeline(char **args, int arg_count,
 }
 
 
-/**
- * @brief Exécute la commande sous forme de pipeline (plusieurs segments séparés par "|").
- *
- * @param args      Tableau d'arguments (contenant au moins un "|").
- * @param arg_count Nombre total d'arguments dans @p args.
- */
-static void execute_pipeline(char **args, int arg_count)
-{
+
+static void execute_pipeline(char **args, int arg_count){
     // Découpe args en sous-commandes (segments)
     char **segments[50];
     memset(segments, 0, sizeof(segments));
@@ -314,19 +265,19 @@ static void execute_pipeline(char **args, int arg_count)
         }
     }
 
+    // On stocke les pids dans un tableau
+    pid_t pids[50];
+
     // On fork seg_count fois
     for (int i = 0; i < seg_count; i++) {
         pid_t pid = fork();
         if (pid < 0) {
             perror("fork");
             last_exit_status = 1;
-            // parent => on arrête tout, on libère, etc.
-            // On peut faire un wait() best-effort, mais bref :
-            continue;
+            continue; // on peut tenter de continuer, mais c'est bancal
         }
         else if (pid == 0) {
-            // Enfant : redirections du pipeline
-            // => si pas le premier segment, on lit dans le pipe précédent
+            // Enfant
             if (i > 0) {
                 dup2(pipefd[i-1][0], STDIN_FILENO);
             }
@@ -341,7 +292,7 @@ static void execute_pipeline(char **args, int arg_count)
                 close(pipefd[j][1]);
             }
 
-            // On exécute le segment i
+            // Exécute la commande i
             int local_argc = 0;
             while (segments[i][local_argc] != NULL) {
                 local_argc++;
@@ -351,25 +302,28 @@ static void execute_pipeline(char **args, int arg_count)
         }
         else {
             // Parent
-            // Pas grand-chose à faire ici immédiatement
+            pids[i] = pid;
+            // On ne ferme rien ici dans l'immédiat
         }
     }
 
-    // Parent : ferme tous les fd
+    // Le parent ferme tous les fd
     for (int j = 0; j < seg_count - 1; j++) {
         close(pipefd[j][0]);
         close(pipefd[j][1]);
     }
 
-    // Parent : attend tous les enfants
-    last_exit_status = 0; // on va récupérer le RC du dernier
     for (int i = 0; i < seg_count; i++) {
         int status;
-        pid_t w = wait(&status);
-        if (w > 0 && WIFEXITED(status)) {
-            last_exit_status = WEXITSTATUS(status); 
-        } else if (w > 0 && WIFSIGNALED(status)) {
-            last_exit_status = 1; // ou autre
+        waitpid(pids[i], &status, 0);
+
+        if (i == seg_count - 1) {
+            // On ne met à jour last_exit_status que pour le dernier segment
+            if (WIFEXITED(status)) {
+                last_exit_status = WEXITSTATUS(status);
+            } else if (WIFSIGNALED(status)) {
+                last_exit_status = 1; 
+            }
         }
     }
 
@@ -380,14 +334,6 @@ static void execute_pipeline(char **args, int arg_count)
 }
 
 
-/**
- * @brief Point d'entrée principal : découpe par `;` et exécute chaque portion.
- *        Pour chaque portion, on détecte la présence de `|`.
- *        - s’il y a un pipe, on appelle execute_pipeline(...)
- *        - sinon on appelle execute_single_command(...).
- *
- * @param input La ligne de commande à traiter.
- */
 void process_command(const char *input)
 {
     if (!input || strlen(input) == 0) return; 
