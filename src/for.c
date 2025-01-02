@@ -99,34 +99,30 @@ int parse_command_block(char *args[], int start_index, for_loop_t *loop) {
     command_buffer[0] = '\0';
 
     int i = start_index;
-    for (; args[i]; i++) {
+    while (args[i]) {
         if (strcmp(args[i], "{") == 0) {
-            i++;
             break;
         }
+        i++;
     }
-
-    if (!args[i] && strcmp(args[i-1], "{") != 0) {
+    if (!args[i]) {
         errno = EINVAL;
         perror("Syntax error: missing '{' in for command");
         return -1;
     }
 
     int brace_count = 1;
+    i++;  // On saute la première '{'
+    int block_start = i;
+
     for (; args[i]; i++) {
         if (strcmp(args[i], "{") == 0) {
             brace_count++;
-            strncat(command_buffer, "{ ", sizeof(command_buffer)-strlen(command_buffer)-1);
         } else if (strcmp(args[i], "}") == 0) {
             brace_count--;
             if (brace_count == 0) {
                 break;
-            } else {
-                strncat(command_buffer, "} ", sizeof(command_buffer)-strlen(command_buffer)-1);
             }
-        } else {
-            strncat(command_buffer, args[i], sizeof(command_buffer)-strlen(command_buffer)-1);
-            strncat(command_buffer, " ", sizeof(command_buffer)-strlen(command_buffer)-1);
         }
     }
 
@@ -136,8 +132,31 @@ int parse_command_block(char *args[], int start_index, for_loop_t *loop) {
         return -1;
     }
 
+    /* Construit la chaîne contenant le bloc (ex: "if grep i $F >> res { ... }") */
+    char block_content[1024];
+    block_content[0] = '\0';
+
+    for (int j = block_start; j < i; j++) {
+        strncat(block_content, args[j],
+                sizeof(block_content) - strlen(block_content) - 1);
+        strncat(block_content, " ",
+                sizeof(block_content) - strlen(block_content) - 1);
+    }
+
+    /* Alloue et stocke ce bloc comme une seule commande dans command_parts */
     loop->command_parts = malloc(sizeof(char *));
-    loop->command_parts[0] = strdup(command_buffer);
+    if (!loop->command_parts) {
+        perror("malloc");
+        return -1;
+    }
+    loop->command_parts[0] = strdup(block_content);
+    if (!loop->command_parts[0]) {
+        perror("strdup");
+        free(loop->command_parts);
+        loop->command_parts = NULL;
+        return -1;
+    }
+
     loop->command_parts_count = 1;
     return 0;
 }
@@ -191,6 +210,9 @@ int process_directory(const for_loop_t *loop) {
         if (lstat(file_path, &st) == -1) continue;
 
         if (S_ISDIR(st.st_mode) && loop->recursive) {
+            if (entry->d_name[0] == '.' && !loop->show_hidden) {
+                continue;
+            }
             for_loop_t sub_loop = *loop;
             sub_loop.directory = file_path;
             int sub_result = process_directory(&sub_loop);
