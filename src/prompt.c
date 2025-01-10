@@ -27,22 +27,26 @@ char* update_prompt(int last_exit_status, const char *current_dir) {
     int max_visible_length = 33; // Longueur maximale visible du prompt
     int fixed_length = 5; // Longueur fixe pour "[xxx]$ ", sans inclure les couleurs
     int max_dir_length;
-
+    
     // Construire le statut [xxx]
-    int i = 0;
-    status[i++] = '[';
-    if (last_exit_status < 10) {
-        status[i++] = '0' + last_exit_status;
-    } else if (last_exit_status < 100) {
-        status[i++] = '0' + (last_exit_status / 10); // Premier chiffre
-        status[i++] = '0' + (last_exit_status % 10); // Deuxième chiffre
+    if (last_exit_status < 0) {
+        strcpy(status, "[SIG]");
     } else {
-        status[i++] = '0' + (last_exit_status / 100); // Premier chiffre
-        status[i++] = '0' + ((last_exit_status / 10) % 10); // Deuxième chiffre
-        status[i++] = '0' + (last_exit_status % 10); // Troisième chiffre
+        int i = 0;
+        status[i++] = '[';
+        if (last_exit_status < 10) {
+            status[i++] = '0' + last_exit_status;
+        } else if (last_exit_status < 100) {
+            status[i++] = '0' + (last_exit_status / 10);
+            status[i++] = '0' + (last_exit_status % 10);
+        } else {
+            status[i++] = '0' + (last_exit_status / 100);
+            status[i++] = '0' + ((last_exit_status / 10) % 10);
+            status[i++] = '0' + (last_exit_status % 10);
+        }
+        status[i++] = ']';
+        status[i] = '\0';
     }
-    status[i++] = ']';
-    status[i] = '\0';
 
     // Calculer la longueur maximale pour le répertoire
     max_dir_length = max_visible_length - strlen(status) - fixed_length;
@@ -61,7 +65,6 @@ char* update_prompt(int last_exit_status, const char *current_dir) {
     }
 
     // Construire le prompt final
-    i = 0;
     strcpy(prompt, status_color);      // Ajouter la couleur du statut
     strcat(prompt, status);            // Ajouter le statut
     strcat(prompt, COLOR_BLUE);        // Ajouter la couleur du répertoire

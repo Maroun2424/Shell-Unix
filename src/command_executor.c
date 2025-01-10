@@ -5,6 +5,7 @@
 #include "../include/for.h"
 #include "../include/commandes_structurees.h"
 #include "../include/redirections.h"
+#include "../include/fsh.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,6 +14,7 @@
 #include <sys/wait.h>
 #include <stdbool.h>
 #include <fcntl.h>
+#include <signal.h>
 
 // Variables globales déjà définies
 int last_exit_status = 0;
@@ -59,10 +61,12 @@ static void run_subcommand_in_child(char **args, int arg_count)
         exit(r);
 
     } else if (strcmp(args[0], "exit") == 0) {
-        // Un "exit" dans un pipeline n'a pas trop de sens,
-        // on peut juste ignorer ou signaler.
-        fprintf(stderr, "exit in pipeline: ignored\n");
-        exit(1);
+        if (arg_count > 2) {
+            fprintf(stderr, "exit: too many arguments\n");
+            last_exit_status = 1;
+        } else {
+            cmd_exit((arg_count > 1) ? args[1] : NULL);
+        }
 
     } else if (strcmp(args[0], "for") == 0) {
         // Sémantiquement étrange dans un pipeline, mais on peut l'exécuter quand même
@@ -79,6 +83,7 @@ static void run_subcommand_in_child(char **args, int arg_count)
 
     } else if (strcmp(args[0], "if") == 0) {
         int r = cmd_if(args);
+        if(r < 0) raise(-r);
         exit(r);
 
     } else {
@@ -93,6 +98,7 @@ static void run_subcommand_in_child(char **args, int arg_count)
             }
         }
         execvp(args[0], args);
+        //if(strlen(args) > 3 && args[0] == '.' && args[1] == '/') execv(args[0], args);
         // Si on arrive ici, c'est une erreur
         perror("execvp");
         exit(EXIT_FAILURE);
@@ -109,9 +115,7 @@ static void execute_single_command(char **args, int arg_count) {
     char *infile = NULL, *outfile = NULL, *errfile = NULL;
     TypeDeRedirection out_type = REDIR_INCONNU, err_type = REDIR_INCONNU;
 
-    if (manage_redirections(args, &arg_count,
-                            &infile, &outfile, &errfile,
-                            &out_type, &err_type) != 0) {
+    if (manage_redirections(args, &arg_count, &infile, &outfile, &errfile, &out_type, &err_type) != 0) {
         // En cas d'échec (p.ex. redirection sans fichier), on règle last_exit_status = 1 et on sort
         last_exit_status = 1;
         goto restore_fds;
@@ -148,7 +152,6 @@ static void execute_single_command(char **args, int arg_count) {
             last_exit_status = 1;
         } else {
             cmd_exit((arg_count > 1) ? args[1] : NULL);
-            // Normalement on ne revient pas ici...
         }
     }
     else {
@@ -158,25 +161,32 @@ static void execute_single_command(char **args, int arg_count) {
             last_exit_status = 1;
         }
         else if (pid == 0) {
-            // Enfant : on exécute la commande (redirections déjà faites sur le parent 
-            // pour stdin/stdout/stderr, mais on peut re-checker si on veut un design différent).
+            struct sigaction sa = {0};
+            sa.sa_handler = SIG_DFL;
+            sigaction(SIGTERM, &sa, NULL);
+            // Enfant : exécuter la commande
             run_subcommand_in_child(args, arg_count);
-            // Pas censé revenir
         }
         else {
-            // Parent : on attend la fin
-            int status;
-            waitpid(pid, &status, 0);
-            if (WIFEXITED(status)) {
-                last_exit_status = WEXITSTATUS(status);
-            } else if (WIFSIGNALED(status)) {
-                last_exit_status = 1; 
+            // Parent : vérifier les signaux et attendre
+
+            if (sigint_received) {
+                last_exit_status = -SIGINT; // SIGINT correspond à ce code
+            } else {
+                int status;
+                waitpid(pid, &status, 0);
+                if (WIFEXITED(status)) {
+                    last_exit_status = WEXITSTATUS(status);
+                } else if (WIFSIGNALED(status)) {
+                    last_exit_status = -WTERMSIG(status);
+                    if(last_exit_status == -SIGINT) sigint_received = 1;
+                }
             }
         }
     }
 
 restore_fds:
-    // --- 4) On restaure les descripteurs standard dans le parent ---
+    // --- Restauration des descripteurs standard dans le parent ---
     dup2(saved_stdin,  STDIN_FILENO);
     dup2(saved_stdout, STDOUT_FILENO);
     dup2(saved_stderr, STDERR_FILENO);
@@ -187,8 +197,8 @@ restore_fds:
 }
 
 
-static int split_pipeline(char **args, int arg_count,
-                          char ***segments, int max_segments)
+
+static int split_pipeline(char **args, int arg_count, char ***segments, int max_segments)
 {
     int seg_count = 0;
     int start = 0;  // index du début du segment courant
@@ -322,7 +332,7 @@ static void execute_pipeline(char **args, int arg_count){
             if (WIFEXITED(status)) {
                 last_exit_status = WEXITSTATUS(status);
             } else if (WIFSIGNALED(status)) {
-                last_exit_status = 1; 
+                last_exit_status = -WTERMSIG(status);
             }
         }
     }
@@ -372,9 +382,10 @@ void process_command(const char *input)
             }
         }
 
-        if (has_pipe) {
+        if (has_pipe && sigint_received == 0) {
             execute_pipeline(args, arg_count);
-        } else {
+            if(last_exit_status == -SIGINT && sigint_received == 0) sigint_received = 1;
+        } else if(sigint_received == 0){
             execute_single_command(args, arg_count);
         }
 
