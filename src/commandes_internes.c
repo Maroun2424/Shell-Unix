@@ -51,7 +51,7 @@
  */
 void cmd_exit(const char *exit_code_str) {
     int exit_code = (exit_code_str) ? atoi(exit_code_str) : last_exit_status;
-    exit_code &= 0xFF; // Contraint la valeur à l'octet inférieur (0-255)
+    //exit_code &= 0xFF; // Contraint la valeur à l'octet inférieur (0-255)
     exit(exit_code);
 }
 

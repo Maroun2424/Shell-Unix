@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <../include/fsh.h>
 
 /*
 Syntaxe stricte:
@@ -78,7 +79,7 @@ int cmd_if(char *args[]) {
 
     int i = 1;
     int test_start = i;
-    int test_end = -1; 
+    int test_end = -1;
 
     while (args[i] != NULL) {
         if (strcmp(args[i], "{") == 0) {
@@ -187,7 +188,7 @@ int cmd_if(char *args[]) {
             perror("Syntax error: missing '}' for else-block");
             free(test_cmd);
             free(cmd1_cmd);
-            return 1;
+            return 2;
         }
 
         if (cmd2_end == cmd2_start) {
@@ -195,7 +196,7 @@ int cmd_if(char *args[]) {
             perror("Syntax error: empty else-block");
             free(test_cmd);
             free(cmd1_cmd);
-            return 1;
+            return 2;
         }
     }
 
@@ -214,11 +215,21 @@ int cmd_if(char *args[]) {
     if_test_mode = 1;
     process_command(test_cmd);
     if_test_mode = 0;
+
+    if (sigint_received) {
+        last_exit_status = -SIGINT;
+    }
+
     int test_status = last_exit_status;
     int ret = 0;
 
     if (test_status == 0) {
         process_command(cmd1_cmd);
+
+        if (sigint_received) {
+            last_exit_status = -SIGINT;
+        }
+
         ret = last_exit_status;
     } else {
         if (cmd2_cmd) {
@@ -236,3 +247,4 @@ int cmd_if(char *args[]) {
     last_exit_status = ret;
     return ret;
 }
+

@@ -182,6 +182,8 @@ int process_directory(const for_loop_t *loop) {
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
+        // Débogage avant traitement de chaque fichier ou sous-répertoire
+
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
 
         char file_path[PATH_MAX];
@@ -190,18 +192,35 @@ int process_directory(const for_loop_t *loop) {
         struct stat st;
         if (lstat(file_path, &st) == -1) continue;
 
+        // Gestion récursive des répertoires si nécessaire
         if (S_ISDIR(st.st_mode) && loop->recursive) {
             for_loop_t sub_loop = *loop;
             sub_loop.directory = file_path;
+
             int sub_result = process_directory(&sub_loop);
+
+            if (last_exit_status == -SIGINT) {
+                max_return = sub_result;
+                last_exit_status = -SIGINT;
+                sigint_received = 1;
+                break;
+            }
             if (sub_result > max_return) max_return = sub_result;
         }
 
+        // Vérification si le fichier doit être inclus
         if (should_include_file(entry, loop, loop->directory)) {
             char cmd_buffer[2048];
             generate_command_with_substitution(loop->command_parts[0], file_path, loop, cmd_buffer, sizeof(cmd_buffer));
 
-            process_command(cmd_buffer); 
+            process_command(cmd_buffer);
+
+
+            if (last_exit_status == -SIGINT) {
+                max_return = last_exit_status;
+                sigint_received = 1;
+                break;
+            }
             if (last_exit_status > max_return) max_return = last_exit_status;
         }
     }
@@ -213,7 +232,9 @@ int process_directory(const for_loop_t *loop) {
 int simple_for_loop(char *args[]) {
     for_loop_t loop;
 
-    if (initialize_loop(args, &loop) == -1) return 1;
+    if (initialize_loop(args, &loop) == -1) {
+        return 1;
+    }
 
     int start_i = 4; 
     int brace_found = 0;
@@ -226,7 +247,6 @@ int simple_for_loop(char *args[]) {
 
     if (!brace_found) {
         errno = EINVAL;
-        perror("Syntax error: missing '{' in for command");
         return 1;
     }
 
@@ -236,10 +256,10 @@ int simple_for_loop(char *args[]) {
 
     int result = process_directory(&loop);
 
+
     free(loop.command_parts[0]);
     free(loop.command_parts);
 
     last_exit_status = result;
     return result;
 }
-
