@@ -15,6 +15,8 @@
 #include <readline/history.h>
 #include <signal.h>
 #include <sys/signalfd.h>
+#include <sys/types.h>
+#include <string.h>
 
 volatile sig_atomic_t sigint_received = 0;
 
