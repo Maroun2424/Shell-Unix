@@ -28,6 +28,7 @@
 #include <linux/limits.h>
 #include "../include/commandes_simples.h"
 #include "../include/command_executor.h" // Pour `last_exit_status`
+#include "../include/fsh.h"
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -51,7 +52,6 @@
  */
 void cmd_exit(const char *exit_code_str) {
     int exit_code = (exit_code_str) ? atoi(exit_code_str) : last_exit_status;
-    //exit_code &= 0xFF; // Contraint la valeur à l'octet inférieur (0-255)
     exit(exit_code);
 }
 
