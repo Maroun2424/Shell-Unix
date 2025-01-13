@@ -21,32 +21,34 @@
 // Variables globales
 int last_exit_status = 0;
 int if_test_mode = 0; // Indique si on exécute un TEST dans un if
-extern char g_forValue[]; 
+// extern char g_forValue[];
+ 
+//essaie redirection test jalon2-extra
 
-static char *expand_dollar_f(const char *src) {
-    const char *pos = strstr(src, "$f");
-    if (!pos) {
-        return strdup(src);
-    }
+// static char *expand_dollar_f(const char *src) {
+    // const char *pos = strstr(src, "$f");
+    // if (!pos) {
+        // return strdup(src);
+    // }
 
-    char buffer[4096];
-    buffer[0] = '\0';
+    // char buffer[4096];
+    // buffer[0] = '\0';
 
     // Partie avant "$f"
-    size_t prefix_len = (size_t)(pos - src);
-    strncat(buffer, src, prefix_len);
+    // size_t prefix_len = (size_t)(pos - src);
+    // strncat(buffer, src, prefix_len);
 
     // Insérer g_forValue
-    strncat(buffer, g_forValue, sizeof(buffer) - strlen(buffer) - 1);
+    // strncat(buffer, g_forValue, sizeof(buffer) - strlen(buffer) - 1);
 
     // Partie après "$f"
-    const char *after = pos + 2;  // skip "$f" 
-    strncat(buffer, after, sizeof(buffer) - strlen(buffer) - 1);
+    // const char *after = pos + 2;  // skip "$f" 
+    // strncat(buffer, after, sizeof(buffer) - strlen(buffer) - 1);
 
-    return strdup(buffer);
-}
+    // return strdup(buffer);
+// }
 
-void expand_variables_in_args(char **args, int arg_count) {
+/*void expand_variables_in_args(char **args, int arg_count) {
     for (int i = 0; i < arg_count; i++) {
         char *expanded = expand_dollar_f(args[i]);
         if (strcmp(expanded, args[i]) != 0) {
@@ -57,7 +59,7 @@ void expand_variables_in_args(char **args, int arg_count) {
             free(expanded);
         }
     }
-}
+}*/
 
 static void run_subcommand_in_child(char **args, int arg_count) {
 
@@ -412,7 +414,7 @@ int process_command(const char *input) {
             args[arg_count] = NULL;
         }
 
-        expand_variables_in_args(args, arg_count);
+        // expand_variables_in_args(args, arg_count);
 
         // 2) Détection pipeline
         bool has_pipe = false;
