@@ -13,7 +13,7 @@
 #include "../include/commandes_simples.h"
 #include "../include/command_executor.h"
 
-char g_forValue[PATH_MAX] = "";
+// char g_forValue[PATH_MAX] = "";
 typedef struct {
     char *var_name;          // Nom de variable (ex: F)
     char *directory;         // Répertoire de base (ex: dir-30)
@@ -273,8 +273,8 @@ int process_directory(const for_loop_t *loop) {
         }
 
         if (should_include_file(entry, loop, loop->directory)) {
-            strncpy(g_forValue, file_path, sizeof(g_forValue));
-            g_forValue[sizeof(g_forValue) - 1] = '\0';
+            // strncpy(g_forValue, file_path, sizeof(g_forValue));
+            // g_forValue[sizeof(g_forValue) - 1] = '\0';
 
             char cmd_buffer[2048];
             generate_command_with_substitution(loop->command_parts[0], file_path, loop, cmd_buffer, sizeof(cmd_buffer));
